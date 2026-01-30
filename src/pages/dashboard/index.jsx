@@ -1,18 +1,32 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../components/ui/Header";
 import Sidebar from "../../components/ui/Sidebar";
 import Icon from "../../components/AppIcon";
 import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import Select from "../../components/ui/Select";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   getAllTVPOwners,
   getAllVehicles,
   getVehicleStatistics,
   getBillSummaryStatistics,
+  getPaymentsSummaryByAccount,
 } from "../../lib/tvpManagementAPI";
 import { userManagementAPI } from "../../lib/supabase";
 import { formatCurrency } from "../../utils/formatters";
+import {
+  calculatePreviousWeek,
+  calculateWeekFromDate,
+} from "../hissab-accounting-generator/components/WeekSelector";
+
+const toLocalDateString = (d) => {
+  const y = d.getFullYear(),
+    m = d.getMonth() + 1,
+    day = d.getDate();
+  return `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+};
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -35,18 +49,87 @@ const Dashboard = () => {
     bills: {
       totalOutstandingAmount: 0,
     },
+    accountsCollected: {
+      letzryd: 0,
+      tawaaq_fleet: 0,
+      cash_in_hand: 0,
+    },
   });
 
-  // Load dashboard statistics
+  const [financialDateMode, setFinancialDateMode] = useState("week");
+  const [financialWeek, setFinancialWeek] = useState(() => calculatePreviousWeek());
+  const [financialCustomStart, setFinancialCustomStart] = useState("");
+  const [financialCustomEnd, setFinancialCustomEnd] = useState("");
+  const [financialCustomApplied, setFinancialCustomApplied] = useState(null);
+  const [financialLoading, setFinancialLoading] = useState(false);
+
+  const { dateFrom, dateTo, rangeLabel } = useMemo(() => {
+    if (financialDateMode === "week" && financialWeek?.weekStart && financialWeek?.weekEnd) {
+      return {
+        dateFrom: financialWeek.weekStart,
+        dateTo: financialWeek.weekEnd,
+        rangeLabel: (() => {
+          const s = new Date(financialWeek.weekStart);
+          const e = new Date(financialWeek.weekEnd);
+          return `${s.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} – ${e.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+        })(),
+      };
+    }
+    if (financialDateMode === "custom" && financialCustomApplied?.start && financialCustomApplied?.end) {
+      const s = new Date(financialCustomApplied.start);
+      const e = new Date(financialCustomApplied.end);
+      return {
+        dateFrom: financialCustomApplied.start,
+        dateTo: financialCustomApplied.end,
+        rangeLabel: `${s.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} – ${e.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+      };
+    }
+    return { dateFrom: null, dateTo: null, rangeLabel: null };
+  }, [financialDateMode, financialWeek, financialCustomApplied]);
+
+  const balanceToCollect = useMemo(() => {
+    const outstanding = stats.bills.totalOutstandingAmount ?? 0;
+    if (dateFrom && dateTo && stats.accountsCollected) {
+      const totalCollected =
+        (stats.accountsCollected.letzryd ?? 0) +
+        (stats.accountsCollected.tawaaq_fleet ?? 0) +
+        (stats.accountsCollected.cash_in_hand ?? 0);
+      return Math.max(0, outstanding - totalCollected);
+    }
+    return outstanding;
+  }, [dateFrom, dateTo, stats.bills.totalOutstandingAmount, stats.accountsCollected]);
+
+  const loadFinancialSummary = useCallback(
+    async (from, to) => {
+      if (!hasPermission(["tvp_management", "financial_reports"])) return;
+      try {
+        setFinancialLoading(true);
+        const opts = from && to ? { dateFrom: from, dateTo: to } : {};
+        const [billStats, totals] = await Promise.all([
+          getBillSummaryStatistics(opts),
+          getPaymentsSummaryByAccount(opts),
+        ]);
+        setStats((prev) => ({
+          ...prev,
+          bills: billStats || { totalOutstandingAmount: 0 },
+          accountsCollected: totals || { letzryd: 0, tawaaq_fleet: 0, cash_in_hand: 0 },
+        }));
+      } catch (err) {
+        console.error("Error loading financial summary:", err);
+      } finally {
+        setFinancialLoading(false);
+      }
+    },
+    [hasPermission]
+  );
+
   useEffect(() => {
     const loadStats = async () => {
       if (!isAuthenticated) return;
-
       try {
         setLoading(true);
         const promises = [];
 
-        // Load TVP Owners count
         if (hasPermission(["tvp_management"])) {
           promises.push(
             getAllTVPOwners().then((owners) => ({
@@ -57,7 +140,6 @@ const Dashboard = () => {
           promises.push(Promise.resolve({ tvpOwners: 0 }));
         }
 
-        // Load Vehicle statistics
         if (hasPermission(["vehicle_management", "tvp_management"])) {
           promises.push(
             getVehicleStatistics().then((vehicleStats) => ({
@@ -77,7 +159,6 @@ const Dashboard = () => {
           );
         }
 
-        // Load User statistics
         if (hasPermission(["user_management"])) {
           promises.push(
             userManagementAPI.getUserStats().then((userStats) => ({
@@ -88,31 +169,9 @@ const Dashboard = () => {
           promises.push(Promise.resolve({ users: { total: 0, active: 0 } }));
         }
 
-        // Load Bill summary statistics
-        if (hasPermission(["tvp_management", "financial_reports"])) {
-          promises.push(
-            getBillSummaryStatistics().then((billStats) => ({
-              bills: billStats || {
-                totalOutstandingAmount: 0,
-              },
-            }))
-          );
-        } else {
-          promises.push(
-            Promise.resolve({
-              bills: {
-                totalOutstandingAmount: 0,
-              },
-            })
-          );
-        }
-
         const results = await Promise.all(promises);
-        const combinedStats = results.reduce((acc, result) => {
-          return { ...acc, ...result };
-        }, {});
-
-        setStats(combinedStats);
+        const combined = results.reduce((acc, r) => ({ ...acc, ...r }), {});
+        setStats((prev) => ({ ...prev, ...combined }));
       } catch (err) {
         console.error("Error loading dashboard stats:", err);
       } finally {
@@ -122,6 +181,12 @@ const Dashboard = () => {
 
     loadStats();
   }, [isAuthenticated, hasPermission]);
+
+  useEffect(() => {
+    if (!hasPermission(["tvp_management", "financial_reports"])) return;
+    if (!dateFrom || !dateTo) return;
+    loadFinancialSummary(dateFrom, dateTo);
+  }, [dateFrom, dateTo, hasPermission, loadFinancialSummary]);
 
   // Quick action cards based on permissions
   const quickActions = [
@@ -298,13 +363,132 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Outstanding Balance Summary */}
+          {/* Financial Summary */}
           {hasPermission(["tvp_management", "financial_reports"]) && (
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-foreground mb-4">
-                Financial Summary
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                <h2 className="text-xl font-semibold text-foreground">
+                  Financial Summary
+                </h2>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Select
+                    value={financialDateMode}
+                    onChange={(v) => {
+                      setFinancialDateMode(v ?? "week");
+                      if (v === "custom") setFinancialCustomApplied(null);
+                    }}
+                    options={[
+                      { value: "week", label: "Week" },
+                      { value: "custom", label: "Custom range" },
+                    ]}
+                    className="w-36"
+                  />
+                  {financialDateMode === "week" && (
+                    <>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const m = new Date(financialWeek.weekStart);
+                            m.setDate(m.getDate() - 7);
+                            setFinancialWeek(calculateWeekFromDate(toLocalDateString(m)));
+                          }}
+                          iconName="ChevronLeft"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const m = new Date(financialWeek.weekStart);
+                            m.setDate(m.getDate() + 7);
+                            setFinancialWeek(calculateWeekFromDate(toLocalDateString(m)));
+                          }}
+                          iconName="ChevronRight"
+                        />
+                      </div>
+                      <Input
+                        type="date"
+                        value={financialWeek?.weekStart ?? ""}
+                        onChange={(e) => {
+                          const v = e?.target?.value;
+                          if (v) setFinancialWeek(calculateWeekFromDate(v));
+                        }}
+                        className="w-40"
+                      />
+                    </>
+                  )}
+                  {financialDateMode === "custom" && (
+                    <>
+                      <Input
+                        type="date"
+                        placeholder="Start"
+                        value={financialCustomStart}
+                        onChange={(e) => setFinancialCustomStart(e?.target?.value ?? "")}
+                        className="w-36"
+                      />
+                      <span className="text-muted-foreground text-sm">to</span>
+                      <Input
+                        type="date"
+                        placeholder="End"
+                        value={financialCustomEnd}
+                        onChange={(e) => setFinancialCustomEnd(e?.target?.value ?? "")}
+                        className="w-36"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          !financialCustomStart ||
+                          !financialCustomEnd ||
+                          financialCustomStart > financialCustomEnd
+                        }
+                        onClick={() => {
+                          if (
+                            financialCustomStart &&
+                            financialCustomEnd &&
+                            financialCustomStart <= financialCustomEnd
+                          ) {
+                            setFinancialCustomApplied({
+                              start: financialCustomStart,
+                              end: financialCustomEnd,
+                            });
+                          }
+                        }}
+                        iconName="Check"
+                        iconSize={14}
+                      >
+                        Apply
+                      </Button>
+                    </>
+                  )}
+                  {rangeLabel && (
+                    <span className="text-sm text-muted-foreground">
+                      {rangeLabel}
+                    </span>
+                  )}
+                  {dateFrom && dateTo && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={financialLoading}
+                      onClick={() => loadFinancialSummary(dateFrom, dateTo)}
+                      iconName="RefreshCw"
+                      iconSize={14}
+                      iconPosition="left"
+                    >
+                      Refresh
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {financialLoading ? (
+                <div className="flex items-center justify-center py-12 border border-border rounded-lg bg-muted/20">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-2" />
+                  <span className="text-sm text-muted-foreground">Loading financial summary…</span>
+                </div>
+              ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                 {/* Total Outstanding Amount */}
                 <div className="bg-card border border-border rounded-lg p-4">
                   <div className="flex items-center justify-between">
@@ -336,7 +520,88 @@ const Dashboard = () => {
                     />
                   </div>
                 </div>
+                {/* Balance to collect */}
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm text-muted-foreground mb-1">
+                        Balance to collect
+                      </p>
+                      <p
+                        className={`text-2xl font-bold ${
+                          balanceToCollect > 0
+                            ? "text-error"
+                            : "text-success"
+                        }`}
+                      >
+                        {formatCurrency(balanceToCollect)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Outstanding balance from drivers
+                      </p>
+                    </div>
+                    <Icon
+                      name="Banknote"
+                      size={24}
+                      className={
+                        balanceToCollect > 0
+                          ? "text-error"
+                          : "text-success"
+                      }
+                    />
+                  </div>
+                </div>
+                {/* Amount collected by account (for selected period) */}
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">LetzRyd A/c</p>
+                      <p className="text-xl font-bold text-foreground">
+                        {formatCurrency(stats.accountsCollected?.letzryd ?? 0)}
+                      </p>
+                      {rangeLabel && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Collected in selected period
+                        </p>
+                      )}
+                    </div>
+                    <Icon name="Building2" size={24} className="text-primary" />
+                  </div>
+                </div>
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Tawaaq Fleet A/c</p>
+                      <p className="text-xl font-bold text-foreground">
+                        {formatCurrency(stats.accountsCollected?.tawaaq_fleet ?? 0)}
+                      </p>
+                      {rangeLabel && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Collected in selected period
+                        </p>
+                      )}
+                    </div>
+                    <Icon name="Car" size={24} className="text-primary" />
+                  </div>
+                </div>
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Cash In hand</p>
+                      <p className="text-xl font-bold text-foreground">
+                        {formatCurrency(stats.accountsCollected?.cash_in_hand ?? 0)}
+                      </p>
+                      {rangeLabel && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Collected in selected period
+                        </p>
+                      )}
+                    </div>
+                    <Icon name="Wallet" size={24} className="text-primary" />
+                  </div>
+                </div>
               </div>
+              )}
             </div>
           )}
 

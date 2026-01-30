@@ -190,7 +190,7 @@ const OwnersDataGrid = ({
   };
 
   return (
-    <div className="h-full flex flex-col bg-surface">
+    <div className="h-full min-h-0 flex flex-col bg-surface">
       {/* Bulk Actions Toolbar */}
       {selectedOwners?.length > 0 && (
         <div className="p-4 bg-primary/5 border-b border-border">
@@ -255,8 +255,8 @@ const OwnersDataGrid = ({
           </div>
         </div>
       )}
-      {/* Data Grid */}
-      <div className="flex-1 overflow-auto">
+      {/* Data Grid - scrollable contacts list (mobile cards + desktop table) */}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
         {/* Desktop Table View */}
         <div className="hidden lg:block">
           <table className="w-full">

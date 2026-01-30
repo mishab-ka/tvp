@@ -169,6 +169,7 @@ const mapDriverRow = (row) => {
     alternativePhone2: row.alternative_phone_2 || row?.alternative_phone_2 || "",
     alternativePhone3: row.alternative_phone_3 || row?.alternative_phone_3 || "",
     uberDriverPhotos: row.uber_driver_photos || row?.uber_driver_photos || [],
+    includingRoom: !!(row.including_room ?? row?.including_room),
     documents,
     recentTransactions: row.recent_transactions || [],
     transactions: row.transactions || [],
@@ -238,41 +239,64 @@ export const createTVPOwner = async (formValues) => {
     // Generate the next TVP ID
     const tvpId = await generateNextTVPId();
 
-    const insertPayload = {
-      driver_code: tvpId, // Set the auto-generated TVP ID
-      full_name: formValues.name,
-      email: formValues.email?.trim() || null,
-      phone: formValues.phone || null,
-      address: formValues.address || null,
-      region: formValues.region || null,
-      status: formValues.status || "active",
-      category: formValues.category || "single_driver",
-      cumulative_rental_days: 0, // Start with 0 rental days
-      deposit_amount: formValues.depositAmount || 0,
-      outstanding_balance: formValues.outstandingBalance || 0,
-      net_outstanding: formValues.outstandingBalance || 0,
-      payment_delay_days: formValues.paymentDelayDays || 0,
-      performance_score:
-        formValues.performance ??
-        calculatePerformanceScore(formValues.paymentDelayDays),
-      total_earnings: formValues.totalEarnings || 0,
-      total_cash_collect: formValues.totalCashCollect || 0,
-      vehicle_numbers: formValues.vehicleNumbers || [],
-      room_deposit: formValues.roomDeposit || 0,
-      pre_paid_rent_amount: formValues.prePaidRentAmount || 0,
-      documents_charge: formValues.documentsCharge || 0,
-      alternative_phone_1: formValues.alternativePhone1 || null,
-      alternative_phone_2: formValues.alternativePhone2 || null,
-      alternative_phone_3: formValues.alternativePhone3 || null,
-      uber_driver_photos: [], // Will be updated after uploads
+    const buildInsertPayload = (includeIncludingRoom = true) => {
+      const base = {
+        driver_code: tvpId,
+        full_name: formValues.name,
+        email: formValues.email?.trim() || null,
+        phone: formValues.phone || null,
+        address: formValues.address || null,
+        region: formValues.region || null,
+        status: formValues.status || "active",
+        category: formValues.category || "single_driver",
+        cumulative_rental_days: 0,
+        deposit_amount: formValues.depositAmount || 0,
+        outstanding_balance: formValues.outstandingBalance || 0,
+        net_outstanding: formValues.outstandingBalance || 0,
+        payment_delay_days: formValues.paymentDelayDays || 0,
+        performance_score:
+          formValues.performance ??
+          calculatePerformanceScore(formValues.paymentDelayDays),
+        total_earnings: formValues.totalEarnings || 0,
+        total_cash_collect: formValues.totalCashCollect || 0,
+        vehicle_numbers: formValues.vehicleNumbers || [],
+        room_deposit: formValues.roomDeposit || 0,
+        pre_paid_rent_amount: formValues.prePaidRentAmount || 0,
+        documents_charge: formValues.documentsCharge || 0,
+        alternative_phone_1: formValues.alternativePhone1 || null,
+        alternative_phone_2: formValues.alternativePhone2 || null,
+        alternative_phone_3: formValues.alternativePhone3 || null,
+        uber_driver_photos: [],
+      };
+      if (includeIncludingRoom) base.including_room = !!formValues.includingRoom;
+      return base;
     };
 
-    const { data: driver, error: driverError } = await supabase
+    let insertPayload = buildInsertPayload(true);
+    let result = await supabase
       .from(DRIVER_TABLE)
       .insert(insertPayload)
       .select()
       .single();
-    if (driverError) throw driverError;
+    let driver = result.data;
+
+    if (result.error) {
+      const isIncludingRoomSchemaError =
+        (result.error?.code === "PGRST204" || result.error?.message?.includes("schema cache")) &&
+        (result.error?.message?.includes("including_room") || result.error?.message?.includes("including room"));
+      if (isIncludingRoomSchemaError) {
+        insertPayload = buildInsertPayload(false);
+        const retry = await supabase
+          .from(DRIVER_TABLE)
+          .insert(insertPayload)
+          .select()
+          .single();
+        if (retry.error) throw retry.error;
+        driver = retry.data;
+      } else {
+        throw result.error;
+      }
+    }
 
     const documentsPayload = formValues.documents || {};
     const removeDocuments = formValues.removeDocuments || [];
@@ -354,56 +378,80 @@ export const updateTVPOwner = async (ownerId, formValues) => {
       removeDocuments
     );
 
-    const updatePayload = {
-      full_name: formValues.name,
-      email: formValues.email?.trim() || existingRow.email,
-      phone: formValues.phone || existingRow.phone,
-      address: formValues.address || existingRow.address,
-      region: formValues.region || existingRow.region,
-      status: formValues.status || existingRow.status || "active",
-      category: formValues.category ?? existingRow.category ?? "single_driver",
-      cumulative_rental_days:
-        formValues.cumulativeRentalDays ??
-        existingRow.cumulative_rental_days ??
-        0,
-      deposit_amount:
-        formValues.depositAmount ?? existingRow.deposit_amount ?? 0,
-      outstanding_balance:
-        formValues.outstandingBalance ?? existingRow.outstanding_balance ?? 0,
-      net_outstanding:
-        formValues.outstandingBalance ??
-        existingRow.net_outstanding ??
-        existingRow.outstanding_balance ??
-        0,
-      payment_delay_days:
-        formValues.paymentDelayDays ?? existingRow.payment_delay_days ?? 0,
-      performance_score:
-        formValues.performance ??
-        calculatePerformanceScore(
-          formValues.paymentDelayDays ?? existingRow.payment_delay_days
-        ),
-      total_earnings:
-        formValues.totalEarnings ?? existingRow.total_earnings ?? 0,
-      total_cash_collect:
-        formValues.totalCashCollect ?? existingRow.total_cash_collect ?? 0,
-      vehicle_numbers: formValues.vehicleNumbers ?? existingRow.vehicle_numbers,
-      room_deposit: formValues.roomDeposit ?? existingRow.room_deposit ?? 0,
-      pre_paid_rent_amount: formValues.prePaidRentAmount ?? existingRow.pre_paid_rent_amount ?? 0,
-      documents_charge: formValues.documentsCharge ?? existingRow.documents_charge ?? 0,
-      alternative_phone_1: formValues.alternativePhone1 ?? existingRow.alternative_phone_1 ?? null,
-      alternative_phone_2: formValues.alternativePhone2 ?? existingRow.alternative_phone_2 ?? null,
-      alternative_phone_3: formValues.alternativePhone3 ?? existingRow.alternative_phone_3 ?? null,
-      uber_driver_photos: uberPhotoUrls,
-      ...docColumns,
+    const buildPayload = (includeIncludingRoom = true) => {
+      const base = {
+        full_name: formValues.name,
+        email: formValues.email?.trim() || existingRow.email,
+        phone: formValues.phone || existingRow.phone,
+        address: formValues.address || existingRow.address,
+        region: formValues.region || existingRow.region,
+        status: formValues.status || existingRow.status || "active",
+        category: formValues.category ?? existingRow.category ?? "single_driver",
+        cumulative_rental_days:
+          formValues.cumulativeRentalDays ??
+          existingRow.cumulative_rental_days ??
+          0,
+        deposit_amount:
+          formValues.depositAmount ?? existingRow.deposit_amount ?? 0,
+        outstanding_balance:
+          formValues.outstandingBalance ?? existingRow.outstanding_balance ?? 0,
+        net_outstanding:
+          formValues.outstandingBalance ??
+          existingRow.net_outstanding ??
+          existingRow.outstanding_balance ??
+          0,
+        payment_delay_days:
+          formValues.paymentDelayDays ?? existingRow.payment_delay_days ?? 0,
+        performance_score:
+          formValues.performance ??
+          calculatePerformanceScore(
+            formValues.paymentDelayDays ?? existingRow.payment_delay_days
+          ),
+        total_earnings:
+          formValues.totalEarnings ?? existingRow.total_earnings ?? 0,
+        total_cash_collect:
+          formValues.totalCashCollect ?? existingRow.total_cash_collect ?? 0,
+        vehicle_numbers: formValues.vehicleNumbers ?? existingRow.vehicle_numbers,
+        room_deposit: formValues.roomDeposit ?? existingRow.room_deposit ?? 0,
+        pre_paid_rent_amount: formValues.prePaidRentAmount ?? existingRow.pre_paid_rent_amount ?? 0,
+        documents_charge: formValues.documentsCharge ?? existingRow.documents_charge ?? 0,
+        alternative_phone_1: formValues.alternativePhone1 ?? existingRow.alternative_phone_1 ?? null,
+        alternative_phone_2: formValues.alternativePhone2 ?? existingRow.alternative_phone_2 ?? null,
+        alternative_phone_3: formValues.alternativePhone3 ?? existingRow.alternative_phone_3 ?? null,
+        uber_driver_photos: uberPhotoUrls,
+        ...docColumns,
+      };
+      if (includeIncludingRoom) {
+        base.including_room = formValues.includingRoom ?? existingRow.including_room ?? false;
+      }
+      return base;
     };
 
-    const { data, error } = await supabase
+    let updatePayload = buildPayload(true);
+    let { data, error } = await supabase
       .from(DRIVER_TABLE)
       .update(updatePayload)
       .eq("id", ownerId)
       .select()
       .single();
-    if (error) throw error;
+
+    if (error) {
+      const isIncludingRoomSchemaError =
+        (error?.code === "PGRST204" || error?.message?.includes("schema cache")) &&
+        (error?.message?.includes("including_room") || error?.message?.includes("including room"));
+      if (isIncludingRoomSchemaError) {
+        updatePayload = buildPayload(false);
+        const retry = await supabase
+          .from(DRIVER_TABLE)
+          .update(updatePayload)
+          .eq("id", ownerId)
+          .select()
+          .single();
+        if (retry.error) throw retry.error;
+        return mapDriverRow(retry.data);
+      }
+      throw error;
+    }
 
     return mapDriverRow(data);
   } catch (error) {
@@ -986,24 +1034,43 @@ export const createDriverPayment = async (paymentData) => {
       }
     }
 
-    const { data, error } = await supabase
+    const insertPayload = {
+      driver_id: paymentData.driverId,
+      bill_id: paymentData.billId || null,
+      payment_amount: paymentData.paymentAmount,
+      payment_date:
+        paymentData.paymentDate || new Date().toISOString().split("T")[0],
+      payment_type: paymentData.paymentType || "paid",
+      payment_method: paymentData.paymentMethod || null,
+      reference_number: paymentData.referenceNumber || null,
+      notes: paymentData.notes || null,
+      screenshot_url: screenshotUrl,
+      account: paymentData.account || "letzryd",
+    };
+
+    let { data, error } = await supabase
       .from("tvp_driver_payments")
-      .insert({
-        driver_id: paymentData.driverId,
-        bill_id: paymentData.billId || null,
-        payment_amount: paymentData.paymentAmount,
-        payment_date:
-          paymentData.paymentDate || new Date().toISOString().split("T")[0],
-        payment_type: paymentData.paymentType || "paid",
-        payment_method: paymentData.paymentMethod || null,
-        reference_number: paymentData.referenceNumber || null,
-        notes: paymentData.notes || null,
-        screenshot_url: screenshotUrl,
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      const isAccountSchemaError =
+        (error?.code === "PGRST204" || error?.message?.includes("schema cache")) &&
+        (error?.message?.includes("account") || false);
+      if (isAccountSchemaError) {
+        const { account: _a, ...rest } = insertPayload;
+        const retry = await supabase
+          .from("tvp_driver_payments")
+          .insert(rest)
+          .select()
+          .single();
+        if (retry.error) throw retry.error;
+        data = retry.data;
+      } else {
+        throw error;
+      }
+    }
 
     // Update outstanding balance based on payment type
     const { data: driverRow } = await supabase
@@ -1044,13 +1111,91 @@ export const createDriverPayment = async (paymentData) => {
   }
 };
 
+// Update a payment
+export const updateDriverPayment = async (paymentId, driverId, paymentData) => {
+  try {
+    const { data: existing } = await supabase
+      .from("tvp_driver_payments")
+      .select("payment_amount, payment_type")
+      .eq("id", paymentId)
+      .single();
+
+    if (!existing) throw new Error("Payment not found");
+
+    let screenshotUrl = undefined;
+    if (paymentData.screenshot) {
+      const cleanedName =
+        paymentData.screenshot.name?.replace(/\s+/g, "_").toLowerCase() ||
+        "screenshot";
+      const path = `${driverId}/payment_screenshots/${Date.now()}-${cleanedName}`;
+      const { error: uploadError } = await supabase.storage
+        .from(DOCUMENT_BUCKET)
+        .upload(path, paymentData.screenshot, { upsert: true });
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage
+          .from(DOCUMENT_BUCKET)
+          .getPublicUrl(path);
+        screenshotUrl = urlData?.publicUrl || null;
+      }
+    }
+
+    const updatePayload = {
+      payment_amount: paymentData.paymentAmount,
+      payment_date: paymentData.paymentDate || existing.payment_date,
+      payment_type: paymentData.paymentType || "paid",
+      payment_method: paymentData.paymentMethod ?? null,
+      reference_number: paymentData.referenceNumber ?? null,
+      notes: paymentData.notes ?? null,
+    };
+    if (paymentData.account != null) updatePayload.account = paymentData.account;
+    if (screenshotUrl != null) updatePayload.screenshot_url = screenshotUrl;
+
+    const { data: updated, error } = await supabase
+      .from("tvp_driver_payments")
+      .update(updatePayload)
+      .eq("id", paymentId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    const oldAmount = Number(existing.payment_amount || 0);
+    const oldType = existing.payment_type || "paid";
+    const newAmount = Number(paymentData.paymentAmount || 0);
+    const newType = paymentData.paymentType || "paid";
+
+    const { data: driverRow } = await supabase
+      .from(DRIVER_TABLE)
+      .select("outstanding_balance")
+      .eq("id", driverId)
+      .single();
+
+    if (driverRow) {
+      const current = Number(driverRow.outstanding_balance || 0);
+      const reverseOld = oldType === "paid" ? oldAmount : -oldAmount;
+      const applyNew = newType === "paid" ? -newAmount : newAmount;
+      const newOutstanding = Math.max(0, current + reverseOld + applyNew);
+
+      await supabase
+        .from(DRIVER_TABLE)
+        .update({ outstanding_balance: newOutstanding })
+        .eq("id", driverId);
+    }
+
+    return updated;
+  } catch (error) {
+    console.error("Error updating driver payment:", error);
+    throw error;
+  }
+};
+
 // Delete a payment
 export const deleteDriverPayment = async (paymentId, driverId) => {
   try {
     // Get payment amount before deleting
     const { data: payment } = await supabase
       .from("tvp_driver_payments")
-      .select("payment_amount")
+      .select("payment_amount, payment_type")
       .eq("id", paymentId)
       .single();
 
@@ -1062,7 +1207,7 @@ export const deleteDriverPayment = async (paymentId, driverId) => {
 
     if (error) throw error;
 
-    // Restore outstanding balance: add back payment amount
+    // Restore outstanding balance: reverse the payment's effect
     if (payment) {
       const { data: driverRow } = await supabase
         .from(DRIVER_TABLE)
@@ -1073,7 +1218,11 @@ export const deleteDriverPayment = async (paymentId, driverId) => {
       if (driverRow) {
         const currentOutstanding = Number(driverRow.outstanding_balance || 0);
         const paymentAmount = Number(payment.payment_amount || 0);
-        const newOutstanding = currentOutstanding + paymentAmount;
+        const wasPaid = (payment.payment_type || "paid") === "paid";
+        const newOutstanding = Math.max(
+          0,
+          currentOutstanding + (wasPaid ? paymentAmount : -paymentAmount)
+        );
 
         const { error: balanceError } = await supabase
           .from(DRIVER_TABLE)
@@ -1125,26 +1274,73 @@ export const getTotalOutstandingBalance = async (driverId) => {
 };
 
 // Get bill summary statistics for all drivers
-export const getBillSummaryStatistics = async () => {
+// Optional { dateFrom, dateTo }: filter by bill week overlap; else sum all drivers' outstanding_balance
+export const getBillSummaryStatistics = async (opts = {}) => {
   try {
-    // Get sum of outstanding_balance from all TVP drivers
+    const { dateFrom, dateTo } = opts;
+
+    if (dateFrom && dateTo) {
+      const { data: bills, error } = await supabase
+        .from("tvp_driver_bills")
+        .select("current_os")
+        .not("week_start", "is", null)
+        .not("week_end", "is", null)
+        .lte("week_start", dateTo)
+        .gte("week_end", dateFrom);
+
+      if (error) throw error;
+
+      const totalOutstandingAmount = (bills || []).reduce((sum, b) => {
+        return sum + Number(b.current_os || 0);
+      }, 0);
+
+      return { totalOutstandingAmount };
+    }
+
     const { data: drivers, error: driversError } = await supabase
       .from(DRIVER_TABLE)
       .select("outstanding_balance");
 
     if (driversError) throw driversError;
 
-    // Calculate total outstanding amount (sum of all drivers' outstanding_balance)
     const totalOutstandingAmount = (drivers || []).reduce((sum, driver) => {
       return sum + Number(driver.outstanding_balance || 0);
     }, 0);
 
-    return {
-      totalOutstandingAmount,
-    };
+    return { totalOutstandingAmount };
   } catch (error) {
     console.error("Error getting bill summary statistics:", error);
     throw error;
+  }
+};
+
+// Total amount collected per account (paid payments only), across all drivers
+// Optional { dateFrom, dateTo }: filter by payment_date
+export const getPaymentsSummaryByAccount = async (opts = {}) => {
+  try {
+    const { dateFrom, dateTo } = opts;
+    let q = supabase
+      .from("tvp_driver_payments")
+      .select("account, payment_amount")
+      .eq("payment_type", "paid");
+
+    if (dateFrom) q = q.gte("payment_date", dateFrom);
+    if (dateTo) q = q.lte("payment_date", dateTo);
+
+    const { data, error } = await q;
+
+    if (error) throw error;
+
+    const totals = { letzryd: 0, tawaaq_fleet: 0, cash_in_hand: 0 };
+    (data || []).forEach((row) => {
+      const k =
+        row?.account && totals[row.account] !== undefined ? row.account : "letzryd";
+      totals[k] += Number(row?.payment_amount) || 0;
+    });
+    return totals;
+  } catch (error) {
+    console.error("Error getting payments summary by account:", error);
+    return { letzryd: 0, tawaaq_fleet: 0, cash_in_hand: 0 };
   }
 };
 

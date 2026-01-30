@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
+import { Checkbox } from '../../../components/ui/Checkbox';
 
-const OverviewTab = ({ owner, onUpdate }) => {
+const OverviewTab = ({ owner, onUpdate, onIncludingRoomChange }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: owner?.name,
@@ -136,6 +137,18 @@ const OverviewTab = ({ owner, onUpdate }) => {
       </div>
       {/* Vehicle Summary & Financial Snapshot */}
       <div className="space-y-6">
+        {/* Bill options: Including Room */}
+        <div className="bg-card rounded-lg border border-border p-6">
+          <h3 className="text-lg font-semibold text-card-foreground mb-4">Bill options</h3>
+          <Checkbox
+            id="including-room-profile"
+            checked={!!owner?.includingRoom}
+            onCheckedChange={(checked) => onIncludingRoomChange?.(!!checked)}
+            label="Including room — include room rent in bill generation"
+            description="When enabled, room rent is added when generating bills for this driver."
+          />
+        </div>
+
         {/* Vehicle Summary */}
         <div className="bg-card rounded-lg border border-border p-6">
           <h3 className="text-lg font-semibold text-card-foreground mb-4">Vehicle Summary</h3>

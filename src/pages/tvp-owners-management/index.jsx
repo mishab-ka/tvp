@@ -426,7 +426,7 @@ const TVPOwnersManagement = () => {
 
             {/* Content */}
             {!loading && !error && (
-              <div className="flex flex-col lg:flex-row h-[calc(100vh-64px)] overflow-y-auto">
+              <div className="flex flex-col lg:flex-row h-[calc(100vh-64px)] overflow-hidden">
                 {/* Filter Sidebar - Mobile: Full width, Desktop: 20% */}
                 {/* <div
                 className={`${
@@ -452,8 +452,9 @@ const TVPOwnersManagement = () => {
               </div> */}
 
                 {/* Main Content Area - Mobile: Full width, Desktop: Flexible */}
-                <div className="flex-1 flex flex-col min-w-0">
-                  <SearchAndActions
+                <div className="flex-1 flex flex-col min-w-0 min-h-0">
+                  <div className="flex-shrink-0">
+                    <SearchAndActions
                     onSearch={handleSearch}
                     onExport={handleExport}
                     onAddOwner={handleAddOwner}
@@ -462,10 +463,163 @@ const TVPOwnersManagement = () => {
                     showFilters={showFilters}
                     totalOwners={owners?.length}
                     filteredOwners={filteredOwners?.length}
+                    ownerCounts={ownerCounts}
                     canManageOwners={!!canManageOwners}
                   />
+                  </div>
 
-                  <div className="flex-1 min-h-0">
+                  {/* Statistics Dashboard */}
+                  {/* <div className="px-4 pb-4">
+                    <div className="bg-card border border-border rounded-lg p-4 mb-4">
+                      <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center">
+                        <Icon name="BarChart3" size={20} className="mr-2 text-primary" />
+                        Owner Statistics
+                      </h2>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                        
+                        <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs text-muted-foreground">Active</span>
+                            <div className="w-2 h-2 bg-success rounded-full"></div>
+                          </div>
+                          <div className="text-xl font-bold text-foreground">{ownerCounts.active || 0}</div>
+                        </div>
+                        
+                        <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs text-muted-foreground">Inactive</span>
+                            <div className="w-2 h-2 bg-muted-foreground rounded-full"></div>
+                          </div>
+                          <div className="text-xl font-bold text-foreground">{ownerCounts.inactive || 0}</div>
+                        </div>
+                        
+                        <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs text-muted-foreground">Pending</span>
+                            <div className="w-2 h-2 bg-warning rounded-full"></div>
+                          </div>
+                          <div className="text-xl font-bold text-foreground">{ownerCounts.pending || 0}</div>
+                        </div>
+                        
+                        <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs text-muted-foreground">Suspended</span>
+                            <div className="w-2 h-2 bg-error rounded-full"></div>
+                          </div>
+                          <div className="text-xl font-bold text-foreground">{ownerCounts.suspended || 0}</div>
+                        </div>
+                        
+                        <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs text-muted-foreground">Under Review</span>
+                            <div className="w-2 h-2 bg-warning rounded-full"></div>
+                          </div>
+                          <div className="text-xl font-bold text-foreground">{ownerCounts.under_review || 0}</div>
+                        </div>
+                      </div>
+
+                     
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <h3 className="text-sm font-medium text-foreground mb-3">Driver Categories</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-muted-foreground">Single Driver</span>
+                              <Icon name="User" size={14} className="text-primary" />
+                            </div>
+                            <div className="text-lg font-bold text-foreground">{ownerCounts.single_driver || 0}</div>
+                          </div>
+                          
+                          <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-muted-foreground">Double Driver</span>
+                              <Icon name="Users" size={14} className="text-primary" />
+                            </div>
+                            <div className="text-lg font-bold text-foreground">{ownerCounts.double_driver || 0}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <h3 className="text-sm font-medium text-foreground mb-3">Performance Ratings</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-muted-foreground">Excellent (≥90)</span>
+                              <div className="w-2 h-2 bg-success rounded-full"></div>
+                            </div>
+                            <div className="text-lg font-bold text-success">{ownerCounts.excellent || 0}</div>
+                          </div>
+                          
+                          <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-muted-foreground">Good (75-89)</span>
+                              <div className="w-2 h-2 bg-primary rounded-full"></div>
+                            </div>
+                            <div className="text-lg font-bold text-primary">{ownerCounts.good || 0}</div>
+                          </div>
+                          
+                          <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-muted-foreground">Average (60-74)</span>
+                              <div className="w-2 h-2 bg-warning rounded-full"></div>
+                            </div>
+                            <div className="text-lg font-bold text-warning">{ownerCounts.average || 0}</div>
+                          </div>
+                          
+                          <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-muted-foreground">Poor (&lt;60)</span>
+                              <div className="w-2 h-2 bg-error rounded-full"></div>
+                            </div>
+                            <div className="text-lg font-bold text-error">{ownerCounts.poor || 0}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <h3 className="text-sm font-medium text-foreground mb-3">Financial Status</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-muted-foreground">High Deposit (≥15k)</span>
+                              <Icon name="TrendingUp" size={14} className="text-success" />
+                            </div>
+                            <div className="text-lg font-bold text-foreground">{ownerCounts.high_deposit || 0}</div>
+                          </div>
+                          
+                          <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-muted-foreground">Medium Deposit (5k-15k)</span>
+                              <Icon name="TrendingUp" size={14} className="text-primary" />
+                            </div>
+                            <div className="text-lg font-bold text-foreground">{ownerCounts.medium_deposit || 0}</div>
+                          </div>
+                          
+                          <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-muted-foreground">Low Deposit (&lt;5k)</span>
+                              <Icon name="TrendingDown" size={14} className="text-warning" />
+                            </div>
+                            <div className="text-lg font-bold text-foreground">{ownerCounts.low_deposit || 0}</div>
+                          </div>
+                          
+                          <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-muted-foreground">Outstanding Balance</span>
+                              <Icon name="AlertCircle" size={14} className="text-error" />
+                            </div>
+                            <div className="text-lg font-bold text-error">{ownerCounts.outstanding_balance || 0}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div> */}
+
+                  <div className="flex-1 min-h-0 min-w-0">
                     <OwnersDataGrid
                       owners={filteredOwners}
                       selectedOwners={selectedOwners}

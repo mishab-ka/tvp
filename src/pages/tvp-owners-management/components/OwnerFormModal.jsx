@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Button from "../../../components/ui/Button";
 import Input from "../../../components/ui/Input";
 import Select from "../../../components/ui/Select";
+import { Checkbox } from "../../../components/ui/Checkbox";
 import Icon from "../../../components/AppIcon";
 import { getActiveVehicles } from "../../../lib/tvpManagementAPI";
 
@@ -50,6 +51,7 @@ const OwnerFormModal = ({
     roomDeposit: "",
     prePaidRentAmount: "",
     documentsCharge: "",
+    includingRoom: false,
   });
   const [vehicleNumbers, setVehicleNumbers] = useState([""]);
   const [activeVehicles, setActiveVehicles] = useState([]);
@@ -100,10 +102,18 @@ const OwnerFormModal = ({
       try {
         setLoadingVehicles(true);
         const vehicles = await getActiveVehicles();
-        const vehicleOptions = vehicles.map((v) => ({
-          value: v.car_number,
-          label: `${v.car_number}${v.fleet_name ? ` - ${v.fleet_name}` : ""}`,
-        }));
+        const seen = new Set();
+        const vehicleOptions = vehicles
+          .filter((v) => {
+            const key = v.car_number;
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+          .map((v) => ({
+            value: v.car_number,
+            label: `${v.car_number}${v.fleet_name ? ` - ${v.fleet_name}` : ""}`,
+          }));
         setActiveVehicles(vehicleOptions);
       } catch (err) {
         console.error("Error loading active vehicles:", err);
@@ -153,6 +163,7 @@ const OwnerFormModal = ({
           typeof initialData?.documentsCharge === "number"
             ? initialData.documentsCharge.toString()
             : initialData?.documentsCharge || "",
+        includingRoom: !!initialData?.includingRoom,
       });
 
       const existingVehicles =
@@ -190,6 +201,7 @@ const OwnerFormModal = ({
         roomDeposit: "",
         prePaidRentAmount: "",
         documentsCharge: "",
+        includingRoom: false,
       });
       setVehicleNumbers([""]);
       setDocuments({
@@ -273,6 +285,7 @@ const OwnerFormModal = ({
       roomDeposit: parseFloat(formData.roomDeposit) || 0,
       prePaidRentAmount: parseFloat(formData.prePaidRentAmount) || 0,
       documentsCharge: parseFloat(formData.documentsCharge) || 0,
+      includingRoom: !!formData.includingRoom,
       performance: computedPerformance,
       vehicleNumbers: cleanedVehicles,
       documents,
@@ -451,6 +464,17 @@ const OwnerFormModal = ({
                 onChange={(e) =>
                   handleFieldChange("documentsCharge", e?.target?.value)
                 }
+              />
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted/20 p-4">
+              <Checkbox
+                id="including-room-form"
+                checked={!!formData.includingRoom}
+                onCheckedChange={(checked) =>
+                  handleFieldChange("includingRoom", !!checked)
+                }
+                label="Including room — include room rent in bill generation"
               />
             </div>
 

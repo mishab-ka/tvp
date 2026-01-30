@@ -1,20 +1,27 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../../../components/AppIcon";
 import Button from "../../../components/ui/Button";
 import { formatCurrency } from "../../../utils/formatters";
 import Input from "../../../components/ui/Input";
 import Select from "../../../components/ui/Select";
+import { Checkbox } from "../../../components/ui/Checkbox";
 import { 
   updateTVPOwner, 
   getDriverBills,
   getDriverPayments,
   createDriverPayment,
+  updateDriverPayment,
   deleteDriverPayment,
   deleteDriverBill,
   getTotalOutstandingBalance,
   getTVPOwnerDetails
 } from "../../../lib/tvpManagementAPI";
 import { supabase } from "../../../lib/supabase";
+import { ACCOUNT_OPTIONS, getAccountLabel } from "../../../utils/accounts";
+import {
+  calculatePreviousWeek,
+  calculateWeekFromDate,
+} from "../../../pages/hissab-accounting-generator/components/WeekSelector";
 
 const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
   const [activeTab, setActiveTab] = useState("profile");
@@ -55,6 +62,7 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
       alternativePhone1: owner?.alternativePhone1 ?? "",
       alternativePhone2: owner?.alternativePhone2 ?? "",
       alternativePhone3: owner?.alternativePhone3 ?? "",
+      includingRoom: owner?.includingRoom ?? false,
     });
   }, [owner]);
 
@@ -73,8 +81,10 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
   const [payments, setPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [editingPaymentId, setEditingPaymentId] = useState(null);
   const [paymentForm, setPaymentForm] = useState({
     paymentType: "paid",
+    account: "",
     paymentAmount: "",
     paymentDate: new Date().toISOString().split("T")[0],
     paymentMethod: "",
@@ -84,6 +94,31 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
   });
   const paymentScreenshotRef = useRef(null);
 
+  const paymentWeekOptions = useMemo(() => {
+    const formatWeekLabel = (weekStart) => {
+      const d = new Date(weekStart);
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    };
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const currentWeek = calculateWeekFromDate(todayStr);
+    const options = [
+      { value: currentWeek.weekEnd, label: `Current week (${formatWeekLabel(currentWeek.weekStart)} – ${formatWeekLabel(currentWeek.weekEnd)})` },
+    ];
+    const currentMonday = new Date(currentWeek.weekStart);
+    for (let n = 1; n <= 12; n++) {
+      const prevMonday = new Date(currentMonday);
+      prevMonday.setDate(prevMonday.getDate() - 7 * n);
+      const prevMondayStr = `${prevMonday.getFullYear()}-${String(prevMonday.getMonth() + 1).padStart(2, "0")}-${String(prevMonday.getDate()).padStart(2, "0")}`;
+      const week = calculateWeekFromDate(prevMondayStr);
+      const label = n === 1
+        ? `Previous week (${formatWeekLabel(week.weekStart)} – ${formatWeekLabel(week.weekEnd)})`
+        : `${n} weeks ago (${formatWeekLabel(week.weekStart)} – ${formatWeekLabel(week.weekEnd)})`;
+      options.push({ value: week.weekEnd, label });
+    }
+    return options;
+  }, []);
+
   useEffect(() => {
     if (owner?.id && activeTab === "bills") {
       loadBills();
@@ -91,7 +126,7 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
   }, [owner?.id, activeTab]);
 
   useEffect(() => {
-    if (owner?.id && activeTab === "payments") {
+    if (owner?.id && (activeTab === "payments" || activeTab === "financial")) {
       loadPayments();
     }
   }, [owner?.id, activeTab]);
@@ -486,6 +521,37 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
         </div>
       </div>
 
+      {/* Bill options: Including Room */}
+      <div>
+        <h3 className="text-sm font-medium text-foreground mb-3">
+          Bill options
+        </h3>
+        <div className="bg-muted/30 p-3 rounded-lg">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Including room</span>
+            <Icon name="Home" size={14} className="text-primary" />
+          </div>
+          {isEditing ? (
+            <Checkbox
+              id="including-room"
+              checked={!!(editData.includingRoom ?? owner?.includingRoom)}
+              onCheckedChange={(checked) =>
+                setEditData({
+                  ...editData,
+                  includingRoom: !!checked,
+                })
+              }
+              label="Include room rent in bill generation"
+              className="mt-2"
+            />
+          ) : (
+            <div className="text-lg font-semibold text-foreground mt-1">
+              {owner?.includingRoom ? "Yes" : "No"}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Quick Actions */}
       <div>
         <h3 className="text-sm font-medium text-foreground mb-3">
@@ -633,30 +699,58 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
     }
   };
 
+  const handleEditPayment = (payment) => {
+    setEditingPaymentId(payment.id);
+    setPaymentForm({
+      paymentType: payment.payment_type || "paid",
+      account: payment.account ?? "",
+      paymentAmount: payment.payment_amount?.toString() ?? "",
+      paymentDate: payment.payment_date ?? new Date().toISOString().split("T")[0],
+      paymentMethod: payment.payment_method ?? "",
+      referenceNumber: payment.reference_number ?? "",
+      notes: payment.notes ?? "",
+      screenshot: null,
+    });
+    setShowPaymentForm(true);
+  };
+
   const handleAddPayment = async (e) => {
     e.preventDefault();
     if (!owner?.id) return;
+    const isEditing = Boolean(editingPaymentId);
     try {
-      await createDriverPayment({
-        driverId: owner.id,
-        paymentType: paymentForm.paymentType || "paid",
-        paymentAmount: paymentForm.paymentAmount,
-        paymentDate: paymentForm.paymentDate,
-        paymentMethod: paymentForm.paymentMethod,
-        referenceNumber: paymentForm.referenceNumber,
-        notes: paymentForm.notes,
-        screenshot: paymentForm.screenshot,
-      });
-      
-      // Reload payments and owner data
+      if (isEditing) {
+        await updateDriverPayment(editingPaymentId, owner.id, {
+          paymentType: paymentForm.paymentType || "paid",
+          account: paymentForm.account || "letzryd",
+          paymentAmount: paymentForm.paymentAmount,
+          paymentDate: paymentForm.paymentDate,
+          paymentMethod: paymentForm.paymentMethod,
+          referenceNumber: paymentForm.referenceNumber,
+          notes: paymentForm.notes,
+          screenshot: paymentForm.screenshot,
+        });
+      } else {
+        await createDriverPayment({
+          driverId: owner.id,
+          paymentType: paymentForm.paymentType || "paid",
+          account: paymentForm.account || "letzryd",
+          paymentAmount: paymentForm.paymentAmount,
+          paymentDate: paymentForm.paymentDate,
+          paymentMethod: paymentForm.paymentMethod,
+          referenceNumber: paymentForm.referenceNumber,
+          notes: paymentForm.notes,
+          screenshot: paymentForm.screenshot,
+        });
+      }
+
       await loadPayments();
-      // Trigger parent to reload owner data
       const updatedOwner = await getTVPOwnerDetails(owner.id);
       onUpdate(updatedOwner);
-      
-      // Reset form
+
       setPaymentForm({
         paymentType: "paid",
+        account: "",
         paymentAmount: "",
         paymentDate: new Date().toISOString().split("T")[0],
         paymentMethod: "",
@@ -664,13 +758,14 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
         notes: "",
         screenshot: null,
       });
+      setEditingPaymentId(null);
       if (paymentScreenshotRef.current) {
         paymentScreenshotRef.current.value = "";
       }
       setShowPaymentForm(false);
     } catch (err) {
-      console.error("Error adding payment:", err);
-      alert(err.message || "Failed to add payment");
+      console.error(isEditing ? "Error updating payment:" : "Error adding payment:", err);
+      alert(err.message || (isEditing ? "Failed to update payment" : "Failed to add payment"));
     }
   };
 
@@ -690,6 +785,15 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
     }
   };
 
+  const totalCollectedByAccount = useMemo(() => {
+    const totals = { letzryd: 0, tawaaq_fleet: 0, cash_in_hand: 0 };
+    (payments || []).forEach((p) => {
+      if (p.payment_type !== "paid") return;
+      const k = p?.account && totals[p.account] !== undefined ? p.account : "letzryd";
+      totals[k] += Number(p?.payment_amount) || 0;
+    });
+    return totals;
+  }, [payments]);
 
   const renderFinancialTab = () => (
     <div className="space-y-6">
@@ -744,6 +848,40 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
         </div>
       </div>
 
+      {/* Amount collected by account (this driver) */}
+      <div>
+        <h3 className="text-sm font-medium text-foreground mb-3">Amount collected by account</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-muted/30 p-4 rounded-lg border border-border">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">LetzRyd A/c</span>
+              <Icon name="Building2" size={16} className="text-primary" />
+            </div>
+            <div className="text-xl font-bold text-foreground">
+              {formatCurrency(totalCollectedByAccount?.letzryd ?? 0)}
+            </div>
+          </div>
+          <div className="bg-muted/30 p-4 rounded-lg border border-border">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">Tawaaq Fleet A/c</span>
+              <Icon name="Car" size={16} className="text-primary" />
+            </div>
+            <div className="text-xl font-bold text-foreground">
+              {formatCurrency(totalCollectedByAccount?.tawaaq_fleet ?? 0)}
+            </div>
+          </div>
+          <div className="bg-muted/30 p-4 rounded-lg border border-border">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">Cash In hand</span>
+              <Icon name="Wallet" size={16} className="text-primary" />
+            </div>
+            <div className="text-xl font-bold text-foreground">
+              {formatCurrency(totalCollectedByAccount?.cash_in_hand ?? 0)}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Payment Management Section */}
       <div>
         <div className="flex items-center justify-between mb-4">
@@ -755,7 +893,21 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
               iconName="Plus"
               iconPosition="left"
               iconSize={14}
-              onClick={() => setShowPaymentForm(true)}
+              onClick={() => {
+                setEditingPaymentId(null);
+                const prevWeek = calculatePreviousWeek();
+                setPaymentForm({
+                  paymentType: "paid",
+                  account: "",
+                  paymentAmount: "",
+                  paymentDate: prevWeek.weekEnd,
+                  paymentMethod: "",
+                  referenceNumber: "",
+                  notes: "",
+                  screenshot: null,
+                });
+                setShowPaymentForm(true);
+              }}
             >
               Add Payment
             </Button>
@@ -766,7 +918,9 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
         {showPaymentForm && (
           <form onSubmit={handleAddPayment} className="p-4 border border-border rounded-lg bg-muted/20 space-y-4 mb-4">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-semibold text-foreground">Add Payment</h4>
+              <h4 className="text-sm font-semibold text-foreground">
+                {editingPaymentId ? "Edit Payment" : "Add Payment"}
+              </h4>
               <Button
                 type="button"
                 variant="ghost"
@@ -775,8 +929,10 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
                 iconSize={14}
                 onClick={() => {
                   setShowPaymentForm(false);
+                  setEditingPaymentId(null);
                   setPaymentForm({
                     paymentType: "paid",
+                    account: "",
                     paymentAmount: "",
                     paymentDate: new Date().toISOString().split("T")[0],
                     paymentMethod: "",
@@ -794,6 +950,15 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <Select
+                label="Week"
+                options={paymentWeekOptions}
+                value={paymentForm.paymentDate}
+                onChange={(value) =>
+                  setPaymentForm({ ...paymentForm, paymentDate: value ?? paymentForm.paymentDate })
+                }
+                placeholder="Select week"
+              />
+              <Select
                 label="Payment Category"
                 value={paymentForm.paymentType}
                 onChange={(value) =>
@@ -804,6 +969,16 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
                   { value: "due", label: "Due (Increases Outstanding Balance)" },
                 ]}
                 required
+              />
+              <Select
+                label="Account"
+                required
+                options={ACCOUNT_OPTIONS}
+                value={paymentForm.account ?? ""}
+                onChange={(v) =>
+                  setPaymentForm({ ...paymentForm, account: v ?? "" })
+                }
+                placeholder="Select account"
               />
               <Input
                 label="Payment Amount (₹)"
@@ -878,8 +1053,10 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
                 variant="outline"
                 onClick={() => {
                   setShowPaymentForm(false);
+                  setEditingPaymentId(null);
                   setPaymentForm({
                     paymentType: "paid",
+                    account: "",
                     paymentAmount: "",
                     paymentDate: new Date().toISOString().split("T")[0],
                     paymentMethod: "",
@@ -897,9 +1074,12 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
               <Button 
                 type="submit" 
                 variant="default"
+                disabled={!paymentForm.account || !paymentForm.paymentAmount}
                 className={paymentForm.paymentType === "due" ? "bg-error hover:bg-error/90" : "bg-success hover:bg-success/90"}
               >
-                Add {paymentForm.paymentType === "due" ? "Due" : "Payment"}
+                {editingPaymentId
+                  ? "Save changes"
+                  : `Add ${paymentForm.paymentType === "due" ? "Due" : "Payment"}`}
               </Button>
             </div>
           </form>
@@ -946,6 +1126,11 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
                         {payment.payment_method}
                       </span>
                     )}
+                    {payment.account && (
+                      <span className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/30">
+                        {getAccountLabel(payment.account)}
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground space-y-0.5">
                     <p>
@@ -975,16 +1160,27 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
                     )}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  iconName="Trash2"
-                  iconSize={14}
-                  className="text-error"
-                  onClick={() => handleDeletePayment(payment.id)}
-                >
-                  Delete
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconName="Pencil"
+                    iconSize={14}
+                    onClick={() => handleEditPayment(payment)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconName="Trash2"
+                    iconSize={14}
+                    className="text-error"
+                    onClick={() => handleDeletePayment(payment.id)}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -1046,6 +1242,7 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
     alternativePhone1: editData?.alternativePhone1 ?? owner?.alternativePhone1 ?? "",
     alternativePhone2: editData?.alternativePhone2 ?? owner?.alternativePhone2 ?? "",
     alternativePhone3: editData?.alternativePhone3 ?? owner?.alternativePhone3 ?? "",
+    includingRoom: editData?.includingRoom ?? owner?.includingRoom ?? false,
     uberDriverPhotos: editData?.uberDriverPhotos ?? owner?.uberDriverPhotos ?? [],
     vehicleNumbers: resolveVehicleNumbers(),
     documents: {},
@@ -1538,7 +1735,21 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
             iconName="Plus"
             iconPosition="left"
             iconSize={14}
-            onClick={() => setShowPaymentForm(true)}
+            onClick={() => {
+              setEditingPaymentId(null);
+              const prevWeek = calculatePreviousWeek();
+              setPaymentForm({
+                paymentType: "paid",
+                account: "",
+                paymentAmount: "",
+                paymentDate: prevWeek.weekEnd,
+                paymentMethod: "",
+                referenceNumber: "",
+                notes: "",
+                screenshot: null,
+              });
+              setShowPaymentForm(true);
+            }}
           >
             Add Payment
           </Button>
@@ -1548,19 +1759,33 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
       {showPaymentForm && (
         <form onSubmit={handleAddPayment} className="p-4 border border-border rounded-lg bg-muted/20 space-y-4">
           <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-semibold text-foreground">Add Payment</h4>
+            <h4 className="text-sm font-semibold text-foreground">
+              {editingPaymentId ? "Edit Payment" : "Add Payment"}
+            </h4>
             <Button
               type="button"
               variant="ghost"
               size="sm"
               iconName="X"
               iconSize={14}
-              onClick={() => setShowPaymentForm(false)}
+              onClick={() => {
+                setShowPaymentForm(false);
+                setEditingPaymentId(null);
+              }}
             >
               Cancel
             </Button>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
+            <Select
+              label="Week"
+              options={paymentWeekOptions}
+              value={paymentForm.paymentDate}
+              onChange={(value) =>
+                setPaymentForm({ ...paymentForm, paymentDate: value ?? paymentForm.paymentDate })
+              }
+              placeholder="Select week"
+            />
             <Select
               label="Payment Type"
               value={paymentForm.paymentType}
@@ -1572,6 +1797,16 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
                 { value: "due", label: "Due (Increases Outstanding Balance)" },
               ]}
               required
+            />
+            <Select
+              label="Account"
+              required
+              options={ACCOUNT_OPTIONS}
+              value={paymentForm.account ?? ""}
+              onChange={(v) =>
+                setPaymentForm({ ...paymentForm, account: v ?? "" })
+              }
+              placeholder="Select account"
             />
             <Input
               label="Payment Amount (₹)"
@@ -1648,6 +1883,7 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
                 setShowPaymentForm(false);
                 setPaymentForm({
                   paymentType: "paid",
+                  account: "",
                   paymentAmount: "",
                   paymentDate: new Date().toISOString().split("T")[0],
                   paymentMethod: "",
@@ -1665,9 +1901,12 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
             <Button 
               type="submit" 
               variant="default"
+              disabled={!paymentForm.account || !paymentForm.paymentAmount}
               className={paymentForm.paymentType === "due" ? "bg-error hover:bg-error/90" : "bg-success hover:bg-success/90"}
             >
-              Add {paymentForm.paymentType === "due" ? "Due" : "Payment"}
+              {editingPaymentId
+                ? "Save changes"
+                : `Add ${paymentForm.paymentType === "due" ? "Due" : "Payment"}`}
             </Button>
           </div>
         </form>
@@ -1715,6 +1954,11 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
                       {payment.payment_method}
                     </span>
                   )}
+                  {payment.account && (
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/30">
+                      {getAccountLabel(payment.account)}
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground space-y-0.5">
                   <p>
@@ -1744,16 +1988,27 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
                   )}
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                iconName="Trash2"
-                iconSize={14}
-                className="text-error"
-                onClick={() => handleDeletePayment(payment.id)}
-              >
-                Delete
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconName="Pencil"
+                  iconSize={14}
+                  onClick={() => handleEditPayment(payment)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconName="Trash2"
+                  iconSize={14}
+                  className="text-error"
+                  onClick={() => handleDeletePayment(payment.id)}
+                >
+                  Delete
+                </Button>
+              </div>
             </div>
           ))}
         </div>

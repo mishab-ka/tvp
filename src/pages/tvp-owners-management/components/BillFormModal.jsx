@@ -4,7 +4,9 @@ import Input from "../../../components/ui/Input";
 import Select from "../../../components/ui/Select";
 import Icon from "../../../components/AppIcon";
 import { useAdminSettings } from "../../../hooks/useAdminSettings";
-import WeekSelector, { calculatePreviousWeek } from "../../hissab-accounting-generator/components/WeekSelector";
+import WeekSelector, {
+  calculatePreviousWeek,
+} from "../../hissab-accounting-generator/components/WeekSelector";
 import { getActiveVehicles } from "../../../lib/tvpManagementAPI";
 
 const BillFormModal = ({
@@ -21,7 +23,7 @@ const BillFormModal = ({
       rentalDays: "",
       trips: "",
       dailyRent: "",
-    }
+    },
   ]);
   const [formData, setFormData] = useState({
     weeklyInsurance: "210",
@@ -35,13 +37,18 @@ const BillFormModal = ({
     rtoFine: "",
     accident: "",
     deadKm: "",
-    roomRent: "",
+    roomRent: "1120",
   });
   const [errors, setErrors] = useState({});
   const [weekRange, setWeekRange] = useState(calculatePreviousWeek());
   const [allActiveVehicles, setAllActiveVehicles] = useState([]);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
-  const { calculateFleetRent, fleetRentSlabs, loading: settingsLoading, loadSettings } = useAdminSettings();
+  const {
+    calculateFleetRent,
+    fleetRentSlabs,
+    loading: settingsLoading,
+    loadSettings,
+  } = useAdminSettings();
 
   // Reload settings when modal opens to ensure we have the latest data
   useEffect(() => {
@@ -56,10 +63,18 @@ const BillFormModal = ({
     try {
       setLoadingVehicles(true);
       const vehicles = await getActiveVehicles();
-      const vehicleOptions = vehicles.map((v) => ({
-        value: v.car_number,
-        label: `${v.car_number}${v.fleet_name ? ` - ${v.fleet_name}` : ""}`,
-      }));
+      const seen = new Set();
+      const vehicleOptions = vehicles
+        .filter((v) => {
+          const key = v.car_number;
+          if (!key || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .map((v) => ({
+          value: v.car_number,
+          label: `${v.car_number}${v.fleet_name ? ` - ${v.fleet_name}` : ""}`,
+        }));
       setAllActiveVehicles(vehicleOptions);
     } catch (err) {
       console.error("Error loading active vehicles:", err);
@@ -72,7 +87,8 @@ const BillFormModal = ({
   // Helper function to check if driver is double driver category
   const isDoubleDriverCategory = useMemo(() => {
     if (!driver) return false;
-    const category = driver.category || driver.driverType || driver.driver_type || "";
+    const category =
+      driver.category || driver.driverType || driver.driver_type || "";
     const categoryLower = category?.toLowerCase() || "";
     return (
       categoryLower === "double driver" ||
@@ -81,23 +97,8 @@ const BillFormModal = ({
     );
   }, [driver]);
 
-  // Auto-calculate double driver charge: ₹350 divided by number of vehicles
-  useEffect(() => {
-    if (isDoubleDriverCategory && driver?.vehicleNumbers && driver.vehicleNumbers.length > 0) {
-      const vehicleCount = driver.vehicleNumbers.length;
-      const doubleDriverCharge = 350 / vehicleCount; // ₹350 divided by vehicle count
-      setFormData((prev) => ({
-        ...prev,
-        doubleDriverCharge: doubleDriverCharge.toFixed(2),
-      }));
-    } else if (!isDoubleDriverCategory) {
-      // Clear double driver charge if not double driver
-      setFormData((prev) => ({
-        ...prev,
-        doubleDriverCharge: "",
-      }));
-    }
-  }, [isDoubleDriverCategory, driver?.vehicleNumbers]);
+  // Room rent is only added when driver has "Including room" enabled
+  const isIncludingRoom = !!(driver?.includingRoom ?? driver?.including_room);
 
   // Auto-calculate daily rent for each vehicle based on trips
   useEffect(() => {
@@ -110,10 +111,15 @@ const BillFormModal = ({
             return { ...vehicle, dailyRent: dailyRent.toString() };
           }
           return vehicle;
-        })
+        }),
       );
     }
-  }, [vehicles.map(v => v.trips).join(','), calculateFleetRent, fleetRentSlabs, settingsLoading]);
+  }, [
+    vehicles.map((v) => v.trips).join(","),
+    calculateFleetRent,
+    fleetRentSlabs,
+    settingsLoading,
+  ]);
 
   // Auto-calculate TDS as 1% of Total Earnings
   useEffect(() => {
@@ -121,7 +127,10 @@ const BillFormModal = ({
       const totalEarnings = Number(formData.totalEarnings);
       const tds = totalEarnings * 0.01; // 1% of Total Earnings
       setFormData((prev) => ({ ...prev, tds: tds.toFixed(2) }));
-    } else if (formData.totalEarnings === "" || Number(formData.totalEarnings) === 0) {
+    } else if (
+      formData.totalEarnings === "" ||
+      Number(formData.totalEarnings) === 0
+    ) {
       setFormData((prev) => ({ ...prev, tds: "" }));
     }
   }, [formData.totalEarnings]);
@@ -131,16 +140,12 @@ const BillFormModal = ({
     const totalVehicleRent = vehicles.reduce((sum, vehicle) => {
       const daily = parseFloat(vehicle.dailyRent) || 0;
       const days = parseFloat(vehicle.rentalDays) || 0;
-      return sum + (daily * days);
+      return sum + daily * days;
     }, 0);
     const weeklyInsurance = parseFloat(formData.weeklyInsurance) || 210;
     const doubleDriverCharge = parseFloat(formData.doubleDriverCharge) || 0;
     return totalVehicleRent + weeklyInsurance + doubleDriverCharge;
-  }, [
-    vehicles,
-    formData.weeklyInsurance,
-    formData.doubleDriverCharge,
-  ]);
+  }, [vehicles, formData.weeklyInsurance, formData.doubleDriverCharge]);
 
   // Calculate difference: Total Cash Collect - Total Earnings
   // If Cash Collect > Earnings, difference is positive (adds to net rent)
@@ -151,10 +156,15 @@ const BillFormModal = ({
     return cashCollect - earnings;
   }, [formData.totalEarnings, formData.totalCashCollect]);
 
-  // Calculate Current OS (Final OS): Net Rent + Room Rent - Toll + Driver Pass + TDS - Vehicle Adjustment + RTO + Accident + Dead KM + Difference
+  // Calculate Current OS (Final OS): Net Rent + Room Rent (if including room) - Toll + Driver Pass + TDS - Vehicle Adjustment + RTO + Accident + Dead KM + Difference
   const currentOS = useMemo(() => {
     const netRent = netWeeklyRent;
-    const roomRent = parseFloat(formData.roomRent) || 0;
+    let roomRent = 0;
+    if (isIncludingRoom) {
+      const raw = String(formData.roomRent ?? "").trim();
+      const parsed = parseFloat(raw);
+      roomRent = raw === "" || Number.isNaN(parsed) ? 1120 : parsed;
+    }
     const tollAmount = parseFloat(formData.toll) || 0;
     const vehicleAdjustment = parseFloat(formData.vehicleAdjustment) || 0;
     const platformFee = parseFloat(formData.platformFee) || 0;
@@ -179,6 +189,7 @@ const BillFormModal = ({
     );
   }, [
     netWeeklyRent,
+    isIncludingRoom,
     formData.roomRent,
     formData.toll,
     formData.vehicleAdjustment,
@@ -193,23 +204,27 @@ const BillFormModal = ({
   // Get available vehicles (not already selected in other vehicle entries)
   const getAvailableVehicles = (currentVehicleId) => {
     const selectedVehicles = vehicles
-      .filter(v => v.id !== currentVehicleId && v.vehicleNumber)
-      .map(v => v.vehicleNumber);
-    
+      .filter((v) => v.id !== currentVehicleId && v.vehicleNumber)
+      .map((v) => v.vehicleNumber);
+
     // If no active vehicles loaded yet, fall back to driver's vehicles
     if (allActiveVehicles.length === 0 && driver?.vehicleNumbers) {
       const driverVehicleOptions = driver.vehicleNumbers.map((plate) => ({
         value: plate,
         label: plate,
       }));
-      return driverVehicleOptions.filter(opt => !selectedVehicles.includes(opt.value));
+      return driverVehicleOptions.filter(
+        (opt) => !selectedVehicles.includes(opt.value),
+      );
     }
-    
-    return allActiveVehicles.filter(opt => !selectedVehicles.includes(opt.value));
+
+    return allActiveVehicles.filter(
+      (opt) => !selectedVehicles.includes(opt.value),
+    );
   };
 
   const addVehicle = () => {
-    const newId = Math.max(...vehicles.map(v => v.id), 0) + 1;
+    const newId = Math.max(...vehicles.map((v) => v.id), 0) + 1;
     setVehicles([
       ...vehicles,
       {
@@ -218,20 +233,22 @@ const BillFormModal = ({
         rentalDays: "",
         trips: "",
         dailyRent: "",
-      }
+      },
     ]);
   };
 
   const removeVehicle = (vehicleId) => {
     if (vehicles.length > 1) {
-      setVehicles(vehicles.filter(v => v.id !== vehicleId));
+      setVehicles(vehicles.filter((v) => v.id !== vehicleId));
     }
   };
 
   const updateVehicle = (vehicleId, field, value) => {
-    setVehicles(vehicles.map(vehicle => 
-      vehicle.id === vehicleId ? { ...vehicle, [field]: value } : vehicle
-    ));
+    setVehicles(
+      vehicles.map((vehicle) =>
+        vehicle.id === vehicleId ? { ...vehicle, [field]: value } : vehicle,
+      ),
+    );
   };
 
   useEffect(() => {
@@ -246,11 +263,11 @@ const BillFormModal = ({
         rentalDays: "",
         trips: "",
         dailyRent: "",
-      }
+      },
     ]);
     setFormData({
       weeklyInsurance: "210",
-      doubleDriverCharge: "",
+      doubleDriverCharge: isDoubleDriverCategory ? "350" : "",
       totalEarnings: "",
       totalCashCollect: "",
       platformFee: "",
@@ -260,10 +277,10 @@ const BillFormModal = ({
       rtoFine: "",
       accident: "",
       deadKm: "",
-      roomRent: "",
+      roomRent: isIncludingRoom ? "1120" : "0",
     });
     setErrors({});
-  }, [isOpen, driver, isDoubleDriverCategory]);
+  }, [isOpen, driver, isDoubleDriverCategory, isIncludingRoom]);
 
   if (!isOpen || !driver) {
     return null;
@@ -285,20 +302,24 @@ const BillFormModal = ({
 
   const validate = () => {
     const nextErrors = {};
-    
+
     // Validate each vehicle
     vehicles.forEach((vehicle, index) => {
       if (!vehicle.vehicleNumber?.trim()) {
-        nextErrors[`vehicle_${vehicle.id}_vehicleNumber`] = `Vehicle ${index + 1}: Vehicle number is required`;
+        nextErrors[`vehicle_${vehicle.id}_vehicleNumber`] =
+          `Vehicle ${index + 1}: Vehicle number is required`;
       }
       if (!vehicle.rentalDays || Number(vehicle.rentalDays) <= 0) {
-        nextErrors[`vehicle_${vehicle.id}_rentalDays`] = `Vehicle ${index + 1}: Rental days must be greater than 0`;
+        nextErrors[`vehicle_${vehicle.id}_rentalDays`] =
+          `Vehicle ${index + 1}: Rental days must be greater than 0`;
       }
       if (vehicle.trips === "" || Number(vehicle.trips) < 0) {
-        nextErrors[`vehicle_${vehicle.id}_trips`] = `Vehicle ${index + 1}: Trips must be a valid number`;
+        nextErrors[`vehicle_${vehicle.id}_trips`] =
+          `Vehicle ${index + 1}: Trips must be a valid number`;
       }
       if (!vehicle.dailyRent || Number(vehicle.dailyRent) <= 0) {
-        nextErrors[`vehicle_${vehicle.id}_dailyRent`] = `Vehicle ${index + 1}: Daily rent must be greater than 0`;
+        nextErrors[`vehicle_${vehicle.id}_dailyRent`] =
+          `Vehicle ${index + 1}: Daily rent must be greater than 0`;
       }
     });
 
@@ -319,21 +340,30 @@ const BillFormModal = ({
     }
 
     // Calculate total rental days and trips across all vehicles
-    const totalRentalDays = vehicles.reduce((sum, v) => sum + (Number(v.rentalDays) || 0), 0);
-    const totalTrips = vehicles.reduce((sum, v) => sum + (Number(v.trips) || 0), 0);
-    
+    const totalRentalDays = vehicles.reduce(
+      (sum, v) => sum + (Number(v.rentalDays) || 0),
+      0,
+    );
+    const totalTrips = vehicles.reduce(
+      (sum, v) => sum + (Number(v.trips) || 0),
+      0,
+    );
+
     // If single vehicle, use original format, otherwise pass vehicles array
     const billData = {
       driverId: driver.id,
       tvpId: driver.tvpId,
       driverName: driver.name,
-      vehicles: vehicles.map(v => ({
+      vehicles: vehicles.map((v) => ({
         vehicleNumber: v.vehicleNumber,
         rentalDays: Number(v.rentalDays) || 0,
         trips: Number(v.trips) || 0,
         dailyRent: Number(v.dailyRent) || 0,
       })),
-      vehicleNumber: vehicles.length === 1 ? vehicles[0].vehicleNumber : vehicles.map(v => v.vehicleNumber).join(", "),
+      vehicleNumber:
+        vehicles.length === 1
+          ? vehicles[0].vehicleNumber
+          : vehicles.map((v) => v.vehicleNumber).join(", "),
       rentalDays: totalRentalDays,
       trips: totalTrips,
       dailyRent: vehicles.length === 1 ? Number(vehicles[0].dailyRent) || 0 : 0, // For single vehicle compatibility
@@ -350,7 +380,12 @@ const BillFormModal = ({
       rtoFine: Number(formData.rtoFine) || 0,
       accident: Number(formData.accident) || 0,
       deadKm: Number(formData.deadKm) || 0,
-      roomRent: Number(formData.roomRent) || 0,
+      roomRent: (() => {
+        if (!isIncludingRoom) return 0;
+        const r = String(formData.roomRent ?? "").trim();
+        const p = parseFloat(r);
+        return r === "" || Number.isNaN(p) ? 1120 : p;
+      })(),
       currentOS: currentOS,
       weekStart: weekRange.weekStart,
       weekEnd: weekRange.weekEnd,
@@ -428,7 +463,9 @@ const BillFormModal = ({
           {/* Vehicles Section */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-foreground">Vehicle Details</h3>
+              <h3 className="text-sm font-medium text-foreground">
+                Vehicle Details
+              </h3>
               <Button
                 type="button"
                 variant="outline"
@@ -442,9 +479,14 @@ const BillFormModal = ({
             </div>
 
             {vehicles.map((vehicle, index) => (
-              <div key={vehicle.id} className="border border-border rounded-lg p-4 space-y-4 bg-muted/20">
+              <div
+                key={vehicle.id}
+                className="border border-border rounded-lg p-4 space-y-4 bg-muted/20"
+              >
                 <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium text-foreground">Vehicle {index + 1}</h4>
+                  <h4 className="text-sm font-medium text-foreground">
+                    Vehicle {index + 1}
+                  </h4>
                   {vehicles.length > 1 && (
                     <Button
                       type="button"
@@ -463,15 +505,19 @@ const BillFormModal = ({
                 <Select
                   label="Vehicle Number"
                   options={
-                    loadingVehicles 
-                      ? [{ value: "", label: "Loading vehicles..." }] 
+                    loadingVehicles
+                      ? [{ value: "", label: "Loading vehicles..." }]
                       : getAvailableVehicles(vehicle.id).length > 0
                         ? getAvailableVehicles(vehicle.id)
                         : [{ value: "", label: "No vehicles available" }]
                   }
                   value={vehicle.vehicleNumber}
-                  onChange={(value) => updateVehicle(vehicle.id, "vehicleNumber", value)}
-                  placeholder={loadingVehicles ? "Loading vehicles..." : "Select vehicle"}
+                  onChange={(value) =>
+                    updateVehicle(vehicle.id, "vehicleNumber", value)
+                  }
+                  placeholder={
+                    loadingVehicles ? "Loading vehicles..." : "Select vehicle"
+                  }
                   required
                   error={errors[`vehicle_${vehicle.id}_vehicleNumber`]}
                   disabled={loadingVehicles}
@@ -483,7 +529,9 @@ const BillFormModal = ({
                     type="number"
                     min="1"
                     value={vehicle.rentalDays}
-                    onChange={(e) => updateVehicle(vehicle.id, "rentalDays", e.target.value)}
+                    onChange={(e) =>
+                      updateVehicle(vehicle.id, "rentalDays", e.target.value)
+                    }
                     required
                     error={errors[`vehicle_${vehicle.id}_rentalDays`]}
                     description="Days this vehicle was used"
@@ -493,15 +541,17 @@ const BillFormModal = ({
                     type="number"
                     min="0"
                     value={vehicle.trips}
-                    onChange={(e) => updateVehicle(vehicle.id, "trips", e.target.value)}
+                    onChange={(e) =>
+                      updateVehicle(vehicle.id, "trips", e.target.value)
+                    }
                     required
                     error={errors[`vehicle_${vehicle.id}_trips`]}
                     description={
                       settingsLoading
                         ? "Loading trip slabs..."
                         : fleetRentSlabs.length > 0
-                        ? "Auto-calculates daily rent"
-                        : "Trip slabs not configured"
+                          ? "Auto-calculates daily rent"
+                          : "Trip slabs not configured"
                     }
                   />
                   <Input
@@ -510,15 +560,17 @@ const BillFormModal = ({
                     min="0"
                     step="0.01"
                     value={vehicle.dailyRent}
-                    onChange={(e) => updateVehicle(vehicle.id, "dailyRent", e.target.value)}
+                    onChange={(e) =>
+                      updateVehicle(vehicle.id, "dailyRent", e.target.value)
+                    }
                     required
                     error={errors[`vehicle_${vehicle.id}_dailyRent`]}
                     description={
                       settingsLoading
                         ? "Calculating..."
                         : fleetRentSlabs.length > 0
-                        ? "Auto-calculated from trips"
-                        : "Enter manually"
+                          ? "Auto-calculated from trips"
+                          : "Enter manually"
                     }
                   />
                 </div>
@@ -528,38 +580,71 @@ const BillFormModal = ({
 
           {/* Net Weekly Rent Summary */}
           <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-            <h4 className="text-sm font-medium text-foreground mb-3">Net Weekly Rent Calculation</h4>
+            <h4 className="text-sm font-medium text-foreground mb-3">
+              Net Weekly Rent Calculation
+            </h4>
             <div className="space-y-2 text-sm">
               {vehicles.map((vehicle, index) => {
-                const vehicleRent = (parseFloat(vehicle.dailyRent) || 0) * (parseFloat(vehicle.rentalDays) || 0);
+                const vehicleRent =
+                  (parseFloat(vehicle.dailyRent) || 0) *
+                  (parseFloat(vehicle.rentalDays) || 0);
                 return (
-                  <div key={vehicle.id} className="flex justify-between items-center">
+                  <div
+                    key={vehicle.id}
+                    className="flex justify-between items-center"
+                  >
                     <span className="text-muted-foreground">
-                      Vehicle {index + 1} ({vehicle.vehicleNumber || 'Not selected'}): ₹{parseFloat(vehicle.dailyRent) || 0} × {parseFloat(vehicle.rentalDays) || 0} days
+                      Vehicle {index + 1} (
+                      {vehicle.vehicleNumber || "Not selected"}): ₹
+                      {parseFloat(vehicle.dailyRent) || 0} ×{" "}
+                      {parseFloat(vehicle.rentalDays) || 0} days
                     </span>
-                    <span className="font-medium text-foreground">₹{vehicleRent.toFixed(2)}</span>
+                    <span className="font-medium text-foreground">
+                      ₹{vehicleRent.toFixed(2)}
+                    </span>
                   </div>
                 );
               })}
               <div className="flex justify-between items-center pt-2 border-t border-border">
-                <span className="text-muted-foreground">Subtotal (All Vehicles):</span>
+                <span className="text-muted-foreground">
+                  Subtotal (All Vehicles):
+                </span>
                 <span className="font-medium text-foreground">
-                  ₹{vehicles.reduce((sum, v) => sum + ((parseFloat(v.dailyRent) || 0) * (parseFloat(v.rentalDays) || 0)), 0).toFixed(2)}
+                  ₹
+                  {vehicles
+                    .reduce(
+                      (sum, v) =>
+                        sum +
+                        (parseFloat(v.dailyRent) || 0) *
+                          (parseFloat(v.rentalDays) || 0),
+                      0,
+                    )
+                    .toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">+ Weekly Insurance:</span>
-                <span className="font-medium text-foreground">₹{parseFloat(formData.weeklyInsurance) || 210}</span>
+                <span className="text-muted-foreground">
+                  + Weekly Insurance:
+                </span>
+                <span className="font-medium text-foreground">
+                  ₹{parseFloat(formData.weeklyInsurance) || 210}
+                </span>
               </div>
               {parseFloat(formData.doubleDriverCharge) > 0 && (
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">+ Double Driver Charge:</span>
-                  <span className="font-medium text-foreground">₹{parseFloat(formData.doubleDriverCharge).toFixed(2)}</span>
+                  <span className="text-muted-foreground">
+                    + Double Driver Charge:
+                  </span>
+                  <span className="font-medium text-foreground">
+                    ₹{parseFloat(formData.doubleDriverCharge).toFixed(2)}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between items-center pt-2 border-t-2 border-primary font-semibold">
                 <span className="text-foreground">Net Weekly Rent:</span>
-                <span className="text-primary text-lg">₹{netWeeklyRent.toFixed(2)}</span>
+                <span className="text-primary text-lg">
+                  ₹{netWeeklyRent.toFixed(2)}
+                </span>
               </div>
             </div>
           </div>
@@ -579,14 +664,13 @@ const BillFormModal = ({
             />
             <Input
               label="Double Driver Charge (INR)"
-              
               value={formData.doubleDriverCharge}
               onChange={(e) =>
                 handleFieldChange("doubleDriverCharge", e?.target?.value)
               }
               description={
                 isDoubleDriverCategory
-                  ? `Auto-calculated: ₹350 ÷ ${driver?.vehicleNumbers?.length || 1} vehicles = ₹${formData.doubleDriverCharge || "0"}`
+                  ? "Auto-filled: ₹350 for double driver category"
                   : ""
               }
               disabled={isDoubleDriverCategory}
@@ -615,7 +699,6 @@ const BillFormModal = ({
           <div className="grid gap-4 md:grid-cols-2">
             <Input
               label="Total Earnings (INR)"
-              
               value={formData.totalEarnings}
               onChange={(e) =>
                 handleFieldChange("totalEarnings", e?.target?.value)
@@ -625,7 +708,6 @@ const BillFormModal = ({
             />
             <Input
               label="Total Cash Collect (INR)"
-              
               value={formData.totalCashCollect}
               onChange={(e) =>
                 handleFieldChange("totalCashCollect", e?.target?.value)
@@ -651,8 +733,8 @@ const BillFormModal = ({
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {difference >= 0 
-                ? "Positive: Adds to final amount (collected more than earned)" 
+              {difference >= 0
+                ? "Positive: Adds to final amount (collected more than earned)"
                 : "Negative: Subtracts from final amount (earned more than collected)"}
             </p>
           </div>
@@ -661,7 +743,6 @@ const BillFormModal = ({
           <div className="grid gap-4 md:grid-cols-3">
             <Input
               label="Driver Pass (INR)"
-              
               value={formData.platformFee}
               onChange={(e) =>
                 handleFieldChange("platformFee", e?.target?.value)
@@ -669,13 +750,11 @@ const BillFormModal = ({
             />
             <Input
               label="Toll (INR)"
-              
               value={formData.toll}
               onChange={(e) => handleFieldChange("toll", e?.target?.value)}
             />
             <Input
               label="TDS (INR)"
-              
               value={formData.tds}
               onChange={(e) => handleFieldChange("tds", e?.target?.value)}
               description="Auto-calculated as 1% of Total Earnings"
@@ -687,7 +766,6 @@ const BillFormModal = ({
           <div className="grid gap-4 md:grid-cols-4">
             <Input
               label="Vehicle Adjustment (INR)"
-              
               value={formData.vehicleAdjustment}
               onChange={(e) =>
                 handleFieldChange("vehicleAdjustment", e?.target?.value)
@@ -696,28 +774,26 @@ const BillFormModal = ({
             />
             <Input
               label="RTO Fine (INR)"
-              
               value={formData.rtoFine}
               onChange={(e) => handleFieldChange("rtoFine", e?.target?.value)}
             />
             <Input
               label="Accident (INR)"
-              
               value={formData.accident}
               onChange={(e) => handleFieldChange("accident", e?.target?.value)}
             />
             <Input
               label="Dead KM (INR)"
-             
               value={formData.deadKm}
               onChange={(e) => handleFieldChange("deadKm", e?.target?.value)}
             />
-            <Input
-              label="Room Rent (INR)"
-              
-              value={formData.roomRent}
-              onChange={(e) => handleFieldChange("roomRent", e?.target?.value)}
-            />
+            {isIncludingRoom && (
+              <Input
+                label="Room Rent (INR)"
+                value={formData.roomRent}
+                onChange={(e) => handleFieldChange("roomRent", e?.target?.value)}
+              />
+            )}
           </div>
 
           {/* Current OS Display */}
@@ -728,7 +804,9 @@ const BillFormModal = ({
                   Final Amount
                 </span>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Net Rent + Room Rent - Toll + Driver Pass + TDS - Vehicle Adjustment + RTO + Accident + Dead KM + Difference
+                  {isIncludingRoom
+                    ? "Net Rent + Room Rent - Toll + Driver Pass + TDS - Vehicle Adjustment + RTO + Accident + Dead KM + Difference"
+                    : "Net Rent - Toll + Driver Pass + TDS - Vehicle Adjustment + RTO + Accident + Dead KM + Difference (no room rent)"}
                 </p>
               </div>
               <span

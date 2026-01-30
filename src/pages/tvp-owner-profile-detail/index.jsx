@@ -7,7 +7,7 @@ import VehiclesTab from "./components/VehiclesTab";
 import FinancialsTab from "./components/FinancialsTab";
 import DocumentsTab from "./components/DocumentsTab";
 import ActivityTab from "./components/ActivityTab";
-import { getTVPOwnerDetails } from "../../lib/tvpManagementAPI";
+import { getTVPOwnerDetails, updateTVPOwner } from "../../lib/tvpManagementAPI";
 import { useAuth } from "../../contexts/AuthContext";
 
 const TVPOwnerProfileDetail = () => {
@@ -63,6 +63,7 @@ const TVPOwnerProfileDetail = () => {
         date: "2023-01-15",
         timestamp: "2023-01-15T10:30:00Z",
         status: "completed",
+        account: "letzryd",
       },
       {
         id: "TXN0002",
@@ -72,6 +73,7 @@ const TVPOwnerProfileDetail = () => {
         date: "2023-03-10",
         timestamp: "2023-03-10T14:20:00Z",
         status: "completed",
+        account: "tawaaq_fleet",
       },
       {
         id: "TXN0003",
@@ -81,6 +83,7 @@ const TVPOwnerProfileDetail = () => {
         date: "2024-11-20",
         timestamp: "2024-11-20T09:15:00Z",
         status: "completed",
+        account: "letzryd",
       },
       {
         id: "TXN0004",
@@ -90,6 +93,7 @@ const TVPOwnerProfileDetail = () => {
         date: "2024-12-05",
         timestamp: "2024-12-05T16:45:00Z",
         status: "completed",
+        account: "cash_in_hand",
       },
       {
         id: "TXN0005",
@@ -99,6 +103,7 @@ const TVPOwnerProfileDetail = () => {
         date: "2025-01-15",
         timestamp: "2025-01-15T11:00:00Z",
         status: "completed",
+        account: "cash_in_hand",
       },
     ],
     upcomingPayments: [
@@ -360,6 +365,17 @@ const TVPOwnerProfileDetail = () => {
     }
   };
 
+  const handleIncludingRoomChange = async (checked) => {
+    if (!ownerData?.id) return;
+    try {
+      await updateTVPOwner(ownerData.id, { includingRoom: !!checked });
+      await loadOwnerData();
+    } catch (err) {
+      console.error("Failed to update including room:", err);
+      setError(err?.message || "Failed to update");
+    }
+  };
+
   const handleVehicleAdd = (vehicleData) => {
     setOwnerData((prev) => ({
       ...prev,
@@ -590,7 +606,13 @@ const TVPOwnerProfileDetail = () => {
   const renderActiveTab = () => {
     switch (activeTab) {
       case "overview":
-        return <OverviewTab owner={ownerData} onUpdate={handleOwnerUpdate} />;
+        return (
+          <OverviewTab
+            owner={ownerData}
+            onUpdate={handleOwnerUpdate}
+            onIncludingRoomChange={handleIncludingRoomChange}
+          />
+        );
       case "vehicles":
         return (
           <VehiclesTab

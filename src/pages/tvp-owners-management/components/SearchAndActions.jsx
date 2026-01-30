@@ -13,6 +13,7 @@ const SearchAndActions = ({
   showFilters,
   totalOwners,
   filteredOwners,
+  ownerCounts,
   canManageOwners = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -207,20 +208,22 @@ const SearchAndActions = ({
           </div>
 
           {/* Quick Stats */}
-          <div className="flex items-center space-x-6 text-sm">
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-success rounded-full"></div>
-              <span className="text-muted-foreground">Active: 156</span>
+          {ownerCounts && (
+            <div className="flex items-center space-x-6 text-sm">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-success rounded-full"></div>
+                <span className="text-muted-foreground">Active: {ownerCounts.active || 0}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-warning rounded-full"></div>
+                <span className="text-muted-foreground">Pending: {ownerCounts.pending || 0}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-error rounded-full"></div>
+                <span className="text-muted-foreground">Issues: {(ownerCounts.suspended || 0) + (ownerCounts.under_review || 0)}</span>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-warning rounded-full"></div>
-              <span className="text-muted-foreground">Pending: 23</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-error rounded-full"></div>
-              <span className="text-muted-foreground">Issues: 8</span>
-            </div>
-          </div>
+          )}
         </div>
       </div>
       {/* Advanced Search Panel */}

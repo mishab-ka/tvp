@@ -1,34 +1,51 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
+import Select from '../../../components/ui/Select';
+import { ACCOUNT_OPTIONS, getAccountLabel } from '../../../utils/accounts';
 
 const FinancialsTab = ({ financialData, onTransactionAdd, onTransactionUpdate }) => {
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
-  const [newTransaction, setNewTransaction] = useState({
+  const getDefaultTransaction = () => ({
     type: 'deposit',
+    account: '',
     amount: '',
     description: '',
     date: new Date()?.toISOString()?.split('T')?.[0]
   });
 
+  const [newTransaction, setNewTransaction] = useState(() => getDefaultTransaction());
+
+  const totalCollectedByAccount = useMemo(() => {
+    const totals = { letzryd: 0, tawaaq_fleet: 0, cash_in_hand: 0 };
+    (financialData?.transactions ?? []).forEach((t) => {
+      const key = t?.account && totals[t.account] !== undefined ? t.account : 'letzryd';
+      if (t?.type === 'deposit') totals[key] += Number(t?.amount) || 0;
+    });
+    return totals;
+  }, [financialData?.transactions]);
+
+  const amountNum = Number(newTransaction?.amount);
+  const isFormValid = Boolean(
+    newTransaction?.account &&
+    (editingTransaction ? amountNum >= 0 : amountNum > 0) &&
+    (newTransaction?.description?.trim() ?? '')
+  );
+
   const handleAddTransaction = () => {
+    if (!isFormValid) return;
     const transaction = {
       ...newTransaction,
       id: `TXN${String(financialData?.transactions?.length + 1)?.padStart(4, '0')}`,
       amount: parseFloat(newTransaction?.amount),
+      account: newTransaction?.account || 'letzryd',
       timestamp: new Date()?.toISOString(),
       status: 'completed'
     };
-    
     onTransactionAdd(transaction);
-    setNewTransaction({
-      type: 'deposit',
-      amount: '',
-      description: '',
-      date: new Date()?.toISOString()?.split('T')?.[0]
-    });
+    setNewTransaction(getDefaultTransaction());
     setShowAddTransaction(false);
   };
 
@@ -36,6 +53,7 @@ const FinancialsTab = ({ financialData, onTransactionAdd, onTransactionUpdate })
     setEditingTransaction(transaction?.id);
     setNewTransaction({
       type: transaction?.type,
+      account: transaction?.account || 'letzryd',
       amount: transaction?.amount?.toString(),
       description: transaction?.description,
       date: transaction?.date
@@ -43,19 +61,15 @@ const FinancialsTab = ({ financialData, onTransactionAdd, onTransactionUpdate })
   };
 
   const handleUpdateTransaction = () => {
+    if (!isFormValid) return;
     const updatedTransaction = {
       ...newTransaction,
-      amount: parseFloat(newTransaction?.amount)
+      amount: parseFloat(newTransaction?.amount),
+      account: newTransaction?.account || 'letzryd'
     };
-    
     onTransactionUpdate(editingTransaction, updatedTransaction);
     setEditingTransaction(null);
-    setNewTransaction({
-      type: 'deposit',
-      amount: '',
-      description: '',
-      date: new Date()?.toISOString()?.split('T')?.[0]
-    });
+    setNewTransaction(getDefaultTransaction());
   };
 
   const getTransactionIcon = (type) => {
@@ -85,6 +99,40 @@ const FinancialsTab = ({ financialData, onTransactionAdd, onTransactionUpdate })
 
   return (
     <div className="space-y-6">
+      {/* Account totals (total collected per account) */}
+      <div>
+        <h3 className="text-sm font-medium text-foreground mb-3">Amount collected by account</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-card rounded-lg border border-border p-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <Icon name="Building2" size={16} className="text-primary" />
+              <span className="text-sm font-medium text-card-foreground">LetzRyd A/c</span>
+            </div>
+            <div className="text-2xl font-bold text-foreground">
+              ${(totalCollectedByAccount?.letzryd ?? 0)?.toLocaleString()}
+            </div>
+          </div>
+          <div className="bg-card rounded-lg border border-border p-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <Icon name="Car" size={16} className="text-primary" />
+              <span className="text-sm font-medium text-card-foreground">Tawaaq Fleet A/c</span>
+            </div>
+            <div className="text-2xl font-bold text-foreground">
+              ${(totalCollectedByAccount?.tawaaq_fleet ?? 0)?.toLocaleString()}
+            </div>
+          </div>
+          <div className="bg-card rounded-lg border border-border p-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <Icon name="Wallet" size={16} className="text-primary" />
+              <span className="text-sm font-medium text-card-foreground">Cash In hand</span>
+            </div>
+            <div className="text-2xl font-bold text-foreground">
+              ${(totalCollectedByAccount?.cash_in_hand ?? 0)?.toLocaleString()}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Financial Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-card rounded-lg border border-border p-4">
@@ -126,7 +174,11 @@ const FinancialsTab = ({ financialData, onTransactionAdd, onTransactionUpdate })
             <h3 className="text-lg font-semibold text-card-foreground">Transaction History</h3>
             <Button
               variant="default"
-              onClick={() => setShowAddTransaction(true)}
+              onClick={() => {
+                setNewTransaction(getDefaultTransaction());
+                setShowAddTransaction(true);
+                setEditingTransaction(null);
+              }}
               iconName="Plus"
               iconPosition="left"
               iconSize={16}
@@ -158,6 +210,15 @@ const FinancialsTab = ({ financialData, onTransactionAdd, onTransactionUpdate })
                 </select>
               </div>
               
+              <Select
+                label="Account"
+                required
+                options={ACCOUNT_OPTIONS}
+                value={newTransaction?.account ?? ''}
+                onChange={(v) => setNewTransaction(prev => ({ ...prev, account: v ?? '' }))}
+                placeholder="Select account"
+              />
+              
               <Input
                 label="Amount"
                 type="number"
@@ -188,12 +249,7 @@ const FinancialsTab = ({ financialData, onTransactionAdd, onTransactionUpdate })
                 onClick={() => {
                   setShowAddTransaction(false);
                   setEditingTransaction(null);
-                  setNewTransaction({
-                    type: 'deposit',
-                    amount: '',
-                    description: '',
-                    date: new Date()?.toISOString()?.split('T')?.[0]
-                  });
+                  setNewTransaction(getDefaultTransaction());
                 }}
               >
                 Cancel
@@ -201,7 +257,7 @@ const FinancialsTab = ({ financialData, onTransactionAdd, onTransactionUpdate })
               <Button
                 variant="default"
                 onClick={editingTransaction ? handleUpdateTransaction : handleAddTransaction}
-                disabled={!newTransaction?.amount || !newTransaction?.description}
+                disabled={!isFormValid}
               >
                 {editingTransaction ? 'Update' : 'Add'} Transaction
               </Button>
@@ -223,6 +279,9 @@ const FinancialsTab = ({ financialData, onTransactionAdd, onTransactionUpdate })
                     <div className="font-medium text-foreground">{transaction?.description}</div>
                     <div className="text-sm text-muted-foreground">
                       {transaction?.date} • {transaction?.type?.charAt(0)?.toUpperCase() + transaction?.type?.slice(1)}
+                      {transaction?.account && (
+                        <span className="ml-1">• {getAccountLabel(transaction.account)}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -253,7 +312,11 @@ const FinancialsTab = ({ financialData, onTransactionAdd, onTransactionUpdate })
               <p className="text-muted-foreground mb-4">Start by adding the first transaction for this TVP owner.</p>
               <Button
                 variant="default"
-                onClick={() => setShowAddTransaction(true)}
+                onClick={() => {
+                  setNewTransaction(getDefaultTransaction());
+                  setShowAddTransaction(true);
+                  setEditingTransaction(null);
+                }}
                 iconName="Plus"
                 iconPosition="left"
                 iconSize={16}
