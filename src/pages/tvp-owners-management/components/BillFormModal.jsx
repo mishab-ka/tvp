@@ -526,7 +526,7 @@ const BillFormModal = ({
                 <div className="grid gap-4 md:grid-cols-3">
                   <Input
                     label="Rental Days*"
-                    type="number"
+                    type="text"
                     min="1"
                     value={vehicle.rentalDays}
                     onChange={(e) =>
@@ -538,7 +538,7 @@ const BillFormModal = ({
                   />
                   <Input
                     label="Trips"
-                    type="number"
+                    type="text"
                     min="0"
                     value={vehicle.trips}
                     onChange={(e) =>
@@ -556,7 +556,7 @@ const BillFormModal = ({
                   />
                   <Input
                     label="Daily Rent (INR)"
-                    type="number"
+                    type="text"
                     min="0"
                     step="0.01"
                     value={vehicle.dailyRent}
@@ -653,7 +653,7 @@ const BillFormModal = ({
           <div className="grid gap-4 md:grid-cols-2">
             <Input
               label="Weekly Insurance (INR)"
-              type="number"
+              type="text"
               min="0"
               step="0.01"
               value={formData.weeklyInsurance}
@@ -791,7 +791,9 @@ const BillFormModal = ({
               <Input
                 label="Room Rent (INR)"
                 value={formData.roomRent}
-                onChange={(e) => handleFieldChange("roomRent", e?.target?.value)}
+                onChange={(e) =>
+                  handleFieldChange("roomRent", e?.target?.value)
+                }
               />
             )}
           </div>

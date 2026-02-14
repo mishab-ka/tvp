@@ -14,7 +14,13 @@ const OwnersDataGrid = ({
   onOwnerEdit = () => {},
   onOwnerDelete = () => {},
   onGenerateBill = () => {},
+  onStatusToggle = () => {},
   canManageOwners = false,
+  currentPage = 1,
+  totalPages = 1,
+  pageSize = 25,
+  totalOwners = 0,
+  onPageChange = () => {},
 }) => {
   const [sortConfig, setSortConfig] = useState({
     key: "tvpId",
@@ -116,7 +122,7 @@ const OwnersDataGrid = ({
 
   const SortableHeader = ({ label, sortKey, className = "" }) => (
     <th
-      className={`px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-muted/50 transition-colors ${className}`}
+      className={`px-4 py-3 text-left text-xs bg-white font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-muted/50 transition-colors ${className}`}
       onClick={() => handleSort(sortKey)}
     >
       <div className="flex items-center space-x-1">
@@ -190,7 +196,7 @@ const OwnersDataGrid = ({
   };
 
   return (
-    <div className="h-full min-h-0 flex flex-col bg-surface">
+    <div className="h-full min-h-0  flex flex-col bg-surface">
       {/* Bulk Actions Toolbar */}
       {selectedOwners?.length > 0 && (
         <div className="p-4 bg-primary/5 border-b border-border">
@@ -262,7 +268,7 @@ const OwnersDataGrid = ({
           <table className="w-full">
             <thead className="bg-muted/30 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 w-12">
+                <th className="px-4 py-3 bg-white w-12">
                   <Checkbox
                     checked={
                       selectedOwners?.length === owners?.length &&
@@ -283,7 +289,7 @@ const OwnersDataGrid = ({
                   sortKey="outstandingBalance"
                 />
                 <SortableHeader label="Status" sortKey="status" />
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-4 py-3 text-left bg-white text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -330,12 +336,15 @@ const OwnersDataGrid = ({
                   </td>
                   <td className="px-4 py-4">
                     <div className="text-sm text-foreground capitalize">
-                      {owner?.category === "double_driver" ? "Double Driver" : "Single Driver"}
+                      {owner?.category === "double_driver"
+                        ? "Double Driver"
+                        : "Single Driver"}
                     </div>
                   </td>
                   <td className="px-4 py-4">
                     <div className="flex flex-wrap gap-1">
-                      {owner?.vehicleNumbers && owner.vehicleNumbers.length > 0 ? (
+                      {owner?.vehicleNumbers &&
+                      owner.vehicleNumbers.length > 0 ? (
                         owner.vehicleNumbers.map((vehicle, idx) => (
                           <span
                             key={idx}
@@ -346,7 +355,9 @@ const OwnersDataGrid = ({
                           </span>
                         ))
                       ) : (
-                        <span className="text-sm text-muted-foreground">No vehicles</span>
+                        <span className="text-sm text-muted-foreground">
+                          No vehicles
+                        </span>
                       )}
                     </div>
                   </td>
@@ -366,7 +377,42 @@ const OwnersDataGrid = ({
                       {formatCurrency(owner?.outstandingBalance)}
                     </div>
                   </td>
-                  <td className="px-4 py-4">{getStatusBadge(owner?.status)}</td>
+                  <td
+                    className="px-4 py-4"
+                    onClick={(e) => e?.stopPropagation()}
+                  >
+                    <div className="flex items-center space-x-2">
+                      {getStatusBadge(owner?.status)}
+                      {canManageOwners && (
+                        <div className="flex items-center space-x-1">
+                          {owner?.status !== "active" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs text-success hover:bg-success/10"
+                              onClick={() =>
+                                onStatusToggle(owner?.id, "active")
+                              }
+                            >
+                              Activate
+                            </Button>
+                          )}
+                          {owner?.status !== "inactive" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs text-muted-foreground hover:bg-muted"
+                              onClick={() =>
+                                onStatusToggle(owner?.id, "inactive")
+                              }
+                            >
+                              Deactivate
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td
                     className="px-4 py-4"
                     onClick={(e) => e?.stopPropagation()}
@@ -470,6 +516,32 @@ const OwnersDataGrid = ({
                   {getStatusBadge(owner?.status)}
                   {canManageOwners && (
                     <>
+                      {owner?.status !== "active" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs text-success"
+                          onClick={(e) => {
+                            e?.stopPropagation();
+                            onStatusToggle(owner?.id, "active");
+                          }}
+                        >
+                          Activate
+                        </Button>
+                      )}
+                      {owner?.status !== "inactive" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs text-muted-foreground"
+                          onClick={(e) => {
+                            e?.stopPropagation();
+                            onStatusToggle(owner?.id, "inactive");
+                          }}
+                        >
+                          Deactivate
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -513,7 +585,9 @@ const OwnersDataGrid = ({
                 <div>
                   <span className="text-muted-foreground">Category:</span>
                   <p className="font-medium capitalize">
-                    {owner?.category === "double_driver" ? "Double Driver" : "Single Driver"}
+                    {owner?.category === "double_driver"
+                      ? "Double Driver"
+                      : "Single Driver"}
                   </p>
                 </div>
                 <div>
@@ -563,7 +637,9 @@ const OwnersDataGrid = ({
       <div className="p-4 border-t border-border bg-surface">
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {Math.min(owners?.length, 50)} of {owners?.length} owners
+            Showing {(currentPage - 1) * pageSize + 1} -{" "}
+            {Math.min(currentPage * pageSize, totalOwners)} of {totalOwners}{" "}
+            owners
           </div>
           <div className="flex items-center space-x-2">
             <Button
@@ -571,30 +647,78 @@ const OwnersDataGrid = ({
               size="sm"
               iconName="ChevronLeft"
               iconSize={14}
-              disabled
+              disabled={currentPage <= 1}
+              onClick={() => onPageChange(currentPage - 1)}
             >
               Previous
             </Button>
             <div className="flex items-center space-x-1">
+              {/* First page */}
+              {currentPage > 2 && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onPageChange(1)}
+                  >
+                    1
+                  </Button>
+                  {currentPage > 3 && (
+                    <span className="text-sm text-muted-foreground">...</span>
+                  )}
+                </>
+              )}
+
+              {/* Previous page */}
+              {currentPage > 1 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onPageChange(currentPage - 1)}
+                >
+                  {currentPage - 1}
+                </Button>
+              )}
+
+              {/* Current page */}
               <Button variant="default" size="sm">
-                1
+                {currentPage}
               </Button>
-              <Button variant="ghost" size="sm">
-                2
-              </Button>
-              <Button variant="ghost" size="sm">
-                3
-              </Button>
-              <span className="text-sm text-muted-foreground">...</span>
-              <Button variant="ghost" size="sm">
-                10
-              </Button>
+
+              {/* Next page */}
+              {currentPage < totalPages && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onPageChange(currentPage + 1)}
+                >
+                  {currentPage + 1}
+                </Button>
+              )}
+
+              {/* Last page */}
+              {currentPage < totalPages - 1 && (
+                <>
+                  {currentPage < totalPages - 2 && (
+                    <span className="text-sm text-muted-foreground">...</span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onPageChange(totalPages)}
+                  >
+                    {totalPages}
+                  </Button>
+                </>
+              )}
             </div>
             <Button
               variant="outline"
               size="sm"
               iconName="ChevronRight"
               iconSize={14}
+              disabled={currentPage >= totalPages}
+              onClick={() => onPageChange(currentPage + 1)}
             >
               Next
             </Button>

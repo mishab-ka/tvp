@@ -9,16 +9,15 @@ const SearchAndActions = ({
   onExport,
   onAddOwner,
   onOpenSettings,
-  onToggleFilters,
-  showFilters,
+  onOpenFilterModal,
   totalOwners,
   filteredOwners,
   ownerCounts,
   canManageOwners = false,
+  activeFilterCount = 0,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchType, setSearchType] = useState("all");
-  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
 
   const searchTypeOptions = [
     { value: "all", label: "All Fields" },
@@ -97,28 +96,21 @@ const SearchAndActions = ({
             />
           </div>
 
-          {/* Mobile Filter Toggle */}
+          {/* Advanced Filter - Opens modal */}
           <Button
             variant="outline"
-            onClick={onToggleFilters}
+            onClick={onOpenFilterModal}
             iconName="Filter"
             iconPosition="left"
             iconSize={16}
-            className="lg:hidden"
+            className="relative"
           >
-            Filters
-          </Button>
-
-          {/* Advanced Search Toggle */}
-          <Button
-            variant="outline"
-            onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
-            iconName="Filter"
-            iconPosition="left"
-            iconSize={16}
-            className="hidden lg:flex"
-          >
-            Advanced
+            Advanced Filter
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+                {activeFilterCount}
+              </span>
+            )}
           </Button>
 
           {/* Action Buttons */}
@@ -226,94 +218,6 @@ const SearchAndActions = ({
           )}
         </div>
       </div>
-      {/* Advanced Search Panel */}
-      {showAdvancedSearch && (
-        <div className="px-4 pb-4 border-t border-border bg-muted/20">
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-4">
-            <Select
-              label="Status"
-              options={[
-                { value: "", label: "All Statuses" },
-                { value: "active", label: "Active" },
-                { value: "inactive", label: "Inactive" },
-                { value: "pending", label: "Pending" },
-                { value: "suspended", label: "Suspended" },
-              ]}
-              placeholder="Any Status"
-            />
-
-            <Select
-              label="Region"
-              options={[
-                { value: "", label: "All Regions" },
-                { value: "north", label: "North Zone" },
-                { value: "south", label: "South Zone" },
-                { value: "east", label: "East Zone" },
-                { value: "west", label: "West Zone" },
-                { value: "central", label: "Central Zone" },
-              ]}
-              placeholder="Any Region"
-            />
-
-            <Select
-              label="Performance"
-              options={[
-                { value: "", label: "All Performance" },
-                { value: "excellent", label: "Excellent (90%+)" },
-                { value: "good", label: "Good (75-89%)" },
-                { value: "average", label: "Average (60-74%)" },
-                { value: "poor", label: "Poor (<60%)" },
-              ]}
-              placeholder="Any Performance"
-            />
-
-            <Input
-              label="Vehicle Count"
-              type="number"
-              placeholder="Min vehicles"
-            />
-
-            <div className="flex items-end space-x-2">
-              <Button
-                variant="default"
-                size="sm"
-                iconName="Search"
-                iconPosition="left"
-                iconSize={14}
-              >
-                Apply Filters
-              </Button>
-              <Button variant="outline" size="sm" iconName="X" iconSize={14}>
-                Clear
-              </Button>
-            </div>
-          </div>
-
-          {/* Saved Searches */}
-          <div className="mt-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <Icon name="Star" size={14} className="text-muted-foreground" />
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Saved Searches
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button variant="ghost" size="sm" className="text-xs">
-                High Performers
-              </Button>
-              <Button variant="ghost" size="sm" className="text-xs">
-                Needs Attention
-              </Button>
-              <Button variant="ghost" size="sm" className="text-xs">
-                New This Month
-              </Button>
-              <Button variant="ghost" size="sm" className="text-xs">
-                Outstanding Balance
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

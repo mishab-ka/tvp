@@ -60,6 +60,13 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
       tooltip: "Accounting and reporting tools",
     },
     {
+      label: "Vehicle Performance Sheet",
+      path: "/vehicle-performance-sheet",
+      icon: "BarChart2",
+      permissions: ["financial_reports"],
+      tooltip: "Per-vehicle weekly performance and financial summary",
+    },
+    {
       label: "User Management",
       path: "/admin-user-management",
       icon: "UserCog",

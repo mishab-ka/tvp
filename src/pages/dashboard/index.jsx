@@ -48,6 +48,9 @@ const Dashboard = () => {
     },
     bills: {
       totalOutstandingAmount: 0,
+      totalOutstandingForWeek: null,
+      liveOutstanding: 0,
+      weekBalanceToCollect: null,
     },
     accountsCollected: {
       letzryd: 0,
@@ -57,14 +60,20 @@ const Dashboard = () => {
   });
 
   const [financialDateMode, setFinancialDateMode] = useState("week");
-  const [financialWeek, setFinancialWeek] = useState(() => calculatePreviousWeek());
+  const [financialWeek, setFinancialWeek] = useState(() =>
+    calculatePreviousWeek(),
+  );
   const [financialCustomStart, setFinancialCustomStart] = useState("");
   const [financialCustomEnd, setFinancialCustomEnd] = useState("");
   const [financialCustomApplied, setFinancialCustomApplied] = useState(null);
   const [financialLoading, setFinancialLoading] = useState(false);
 
   const { dateFrom, dateTo, rangeLabel } = useMemo(() => {
-    if (financialDateMode === "week" && financialWeek?.weekStart && financialWeek?.weekEnd) {
+    if (
+      financialDateMode === "week" &&
+      financialWeek?.weekStart &&
+      financialWeek?.weekEnd
+    ) {
       return {
         dateFrom: financialWeek.weekStart,
         dateTo: financialWeek.weekEnd,
@@ -75,7 +84,11 @@ const Dashboard = () => {
         })(),
       };
     }
-    if (financialDateMode === "custom" && financialCustomApplied?.start && financialCustomApplied?.end) {
+    if (
+      financialDateMode === "custom" &&
+      financialCustomApplied?.start &&
+      financialCustomApplied?.end
+    ) {
       const s = new Date(financialCustomApplied.start);
       const e = new Date(financialCustomApplied.end);
       return {
@@ -87,17 +100,11 @@ const Dashboard = () => {
     return { dateFrom: null, dateTo: null, rangeLabel: null };
   }, [financialDateMode, financialWeek, financialCustomApplied]);
 
-  const balanceToCollect = useMemo(() => {
-    const outstanding = stats.bills.totalOutstandingAmount ?? 0;
-    if (dateFrom && dateTo && stats.accountsCollected) {
-      const totalCollected =
-        (stats.accountsCollected.letzryd ?? 0) +
-        (stats.accountsCollected.tawaaq_fleet ?? 0) +
-        (stats.accountsCollected.cash_in_hand ?? 0);
-      return Math.max(0, outstanding - totalCollected);
-    }
-    return outstanding;
-  }, [dateFrom, dateTo, stats.bills.totalOutstandingAmount, stats.accountsCollected]);
+  // Balance to collect: when week selected, use week-based balance; else all-time live outstanding
+  const balanceToCollect =
+    dateFrom && dateTo && stats.bills.weekBalanceToCollect != null
+      ? stats.bills.weekBalanceToCollect
+      : stats.bills.liveOutstanding ?? stats.bills.totalOutstandingAmount ?? 0;
 
   const loadFinancialSummary = useCallback(
     async (from, to) => {
@@ -111,8 +118,17 @@ const Dashboard = () => {
         ]);
         setStats((prev) => ({
           ...prev,
-          bills: billStats || { totalOutstandingAmount: 0 },
-          accountsCollected: totals || { letzryd: 0, tawaaq_fleet: 0, cash_in_hand: 0 },
+          bills: {
+            totalOutstandingAmount: billStats?.totalOutstandingAmount ?? 0,
+            totalOutstandingForWeek: billStats?.totalOutstandingForWeek ?? null,
+            liveOutstanding: billStats?.liveOutstanding ?? billStats?.totalOutstandingAmount ?? 0,
+            weekBalanceToCollect: billStats?.weekBalanceToCollect ?? null,
+          },
+          accountsCollected: totals || {
+            letzryd: 0,
+            tawaaq_fleet: 0,
+            cash_in_hand: 0,
+          },
         }));
       } catch (err) {
         console.error("Error loading financial summary:", err);
@@ -120,7 +136,7 @@ const Dashboard = () => {
         setFinancialLoading(false);
       }
     },
-    [hasPermission]
+    [hasPermission],
   );
 
   useEffect(() => {
@@ -134,7 +150,7 @@ const Dashboard = () => {
           promises.push(
             getAllTVPOwners().then((owners) => ({
               tvpOwners: owners?.length || 0,
-            }))
+            })),
           );
         } else {
           promises.push(Promise.resolve({ tvpOwners: 0 }));
@@ -149,13 +165,13 @@ const Dashboard = () => {
                 maintenance: 0,
                 inactive: 0,
               },
-            }))
+            })),
           );
         } else {
           promises.push(
             Promise.resolve({
               vehicles: { total: 0, active: 0, maintenance: 0, inactive: 0 },
-            })
+            }),
           );
         }
 
@@ -163,7 +179,7 @@ const Dashboard = () => {
           promises.push(
             userManagementAPI.getUserStats().then((userStats) => ({
               users: userStats || { total: 0, active: 0 },
-            }))
+            })),
           );
         } else {
           promises.push(Promise.resolve({ users: { total: 0, active: 0 } }));
@@ -184,7 +200,6 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (!hasPermission(["tvp_management", "financial_reports"])) return;
-    if (!dateFrom || !dateTo) return;
     loadFinancialSummary(dateFrom, dateTo);
   }, [dateFrom, dateTo, hasPermission, loadFinancialSummary]);
 
@@ -277,7 +292,7 @@ const Dashboard = () => {
 
       {/* Main Content */}
       <main
-        className={`transition-all duration-300 ease-in-out pt-16 ${
+        className={`transition-all duration-300 ease-in-out  ${
           sidebarCollapsed ? "lg:ml-16" : "lg:ml-60"
         }`}
       >
@@ -392,7 +407,9 @@ const Dashboard = () => {
                           onClick={() => {
                             const m = new Date(financialWeek.weekStart);
                             m.setDate(m.getDate() - 7);
-                            setFinancialWeek(calculateWeekFromDate(toLocalDateString(m)));
+                            setFinancialWeek(
+                              calculateWeekFromDate(toLocalDateString(m)),
+                            );
                           }}
                           iconName="ChevronLeft"
                         />
@@ -402,7 +419,9 @@ const Dashboard = () => {
                           onClick={() => {
                             const m = new Date(financialWeek.weekStart);
                             m.setDate(m.getDate() + 7);
-                            setFinancialWeek(calculateWeekFromDate(toLocalDateString(m)));
+                            setFinancialWeek(
+                              calculateWeekFromDate(toLocalDateString(m)),
+                            );
                           }}
                           iconName="ChevronRight"
                         />
@@ -424,7 +443,9 @@ const Dashboard = () => {
                         type="date"
                         placeholder="Start"
                         value={financialCustomStart}
-                        onChange={(e) => setFinancialCustomStart(e?.target?.value ?? "")}
+                        onChange={(e) =>
+                          setFinancialCustomStart(e?.target?.value ?? "")
+                        }
                         className="w-36"
                       />
                       <span className="text-muted-foreground text-sm">to</span>
@@ -432,7 +453,9 @@ const Dashboard = () => {
                         type="date"
                         placeholder="End"
                         value={financialCustomEnd}
-                        onChange={(e) => setFinancialCustomEnd(e?.target?.value ?? "")}
+                        onChange={(e) =>
+                          setFinancialCustomEnd(e?.target?.value ?? "")
+                        }
                         className="w-36"
                       />
                       <Button
@@ -485,122 +508,146 @@ const Dashboard = () => {
               {financialLoading ? (
                 <div className="flex items-center justify-center py-12 border border-border rounded-lg bg-muted/20">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-2" />
-                  <span className="text-sm text-muted-foreground">Loading financial summary…</span>
+                  <span className="text-sm text-muted-foreground">
+                    Loading financial summary…
+                  </span>
                 </div>
               ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                {/* Total Outstanding Amount */}
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Total Outstanding Amount
-                      </p>
-                      <p
-                        className={`text-2xl font-bold ${
-                          stats.bills.totalOutstandingAmount > 0
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                  {/* Total Outstanding Amount */}
+                  <div className="bg-card border border-border rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm text-muted-foreground mb-1">
+                          Total Outstanding Amount
+                        </p>
+                        <p
+                          className={`text-2xl font-bold ${
+                            (dateFrom && dateTo && stats.bills.totalOutstandingForWeek != null
+                              ? stats.bills.totalOutstandingForWeek
+                              : stats.bills.totalOutstandingAmount) > 0
+                              ? "text-error"
+                              : "text-success"
+                          }`}
+                        >
+                          {formatCurrency(
+                            dateFrom && dateTo && stats.bills.totalOutstandingForWeek != null
+                              ? stats.bills.totalOutstandingForWeek
+                              : stats.bills.totalOutstandingAmount
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Amount to collect from all drivers
+                        </p>
+                      </div>
+                      <Icon
+                        name="AlertCircle"
+                        size={24}
+                        className={
+                          (dateFrom && dateTo && stats.bills.totalOutstandingForWeek != null
+                            ? stats.bills.totalOutstandingForWeek
+                            : stats.bills.totalOutstandingAmount) > 0
                             ? "text-error"
                             : "text-success"
-                        }`}
-                      >
-                        {formatCurrency(stats.bills.totalOutstandingAmount)}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Amount to collect from all drivers
-                      </p>
+                        }
+                      />
                     </div>
-                    <Icon
-                      name="AlertCircle"
-                      size={24}
-                      className={
-                        stats.bills.totalOutstandingAmount > 0
-                          ? "text-error"
-                          : "text-success"
-                      }
-                    />
                   </div>
-                </div>
-                {/* Balance to collect */}
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Balance to collect
-                      </p>
-                      <p
-                        className={`text-2xl font-bold ${
-                          balanceToCollect > 0
-                            ? "text-error"
-                            : "text-success"
-                        }`}
-                      >
-                        {formatCurrency(balanceToCollect)}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Outstanding balance from drivers
-                      </p>
-                    </div>
-                    <Icon
-                      name="Banknote"
-                      size={24}
-                      className={
-                        balanceToCollect > 0
-                          ? "text-error"
-                          : "text-success"
-                      }
-                    />
-                  </div>
-                </div>
-                {/* Amount collected by account (for selected period) */}
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">LetzRyd A/c</p>
-                      <p className="text-xl font-bold text-foreground">
-                        {formatCurrency(stats.accountsCollected?.letzryd ?? 0)}
-                      </p>
-                      {rangeLabel && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Collected in selected period
+                  {/* Balance to collect */}
+                  <div className="bg-card border border-border rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm text-muted-foreground mb-1">
+                          Balance to collect
                         </p>
-                      )}
-                    </div>
-                    <Icon name="Building2" size={24} className="text-primary" />
-                  </div>
-                </div>
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Tawaaq Fleet A/c</p>
-                      <p className="text-xl font-bold text-foreground">
-                        {formatCurrency(stats.accountsCollected?.tawaaq_fleet ?? 0)}
-                      </p>
-                      {rangeLabel && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Collected in selected period
+                        <p
+                          className={`text-2xl font-bold ${
+                            balanceToCollect > 0 ? "text-error" : "text-success"
+                          }`}
+                        >
+                          {formatCurrency(balanceToCollect)}
                         </p>
-                      )}
-                    </div>
-                    <Icon name="Car" size={24} className="text-primary" />
-                  </div>
-                </div>
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Cash In hand</p>
-                      <p className="text-xl font-bold text-foreground">
-                        {formatCurrency(stats.accountsCollected?.cash_in_hand ?? 0)}
-                      </p>
-                      {rangeLabel && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          Collected in selected period
+                          {dateFrom && dateTo
+                            ? "Remaining to collect for selected week"
+                            : "Remaining to collect (reduces when you add transactions)"}
                         </p>
-                      )}
+                      </div>
+                      <Icon
+                        name="Banknote"
+                        size={24}
+                        className={
+                          balanceToCollect > 0 ? "text-error" : "text-success"
+                        }
+                      />
                     </div>
-                    <Icon name="Wallet" size={24} className="text-primary" />
+                  </div>
+                  {/* Amount collected by account (for selected period) */}
+                  <div className="bg-card border border-border rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">
+                          LetzRyd A/c
+                        </p>
+                        <p className="text-xl font-bold text-foreground">
+                          {formatCurrency(
+                            stats.accountsCollected?.letzryd ?? 0,
+                          )}
+                        </p>
+                        {rangeLabel && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Collected in selected period
+                          </p>
+                        )}
+                      </div>
+                      <Icon
+                        name="Building2"
+                        size={24}
+                        className="text-primary"
+                      />
+                    </div>
+                  </div>
+                  <div className="bg-card border border-border rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">
+                          Tawaaq Fleet A/c
+                        </p>
+                        <p className="text-xl font-bold text-foreground">
+                          {formatCurrency(
+                            stats.accountsCollected?.tawaaq_fleet ?? 0,
+                          )}
+                        </p>
+                        {rangeLabel && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Collected in selected period
+                          </p>
+                        )}
+                      </div>
+                      <Icon name="Car" size={24} className="text-primary" />
+                    </div>
+                  </div>
+                  <div className="bg-card border border-border rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">
+                          Cash In hand
+                        </p>
+                        <p className="text-xl font-bold text-foreground">
+                          {formatCurrency(
+                            stats.accountsCollected?.cash_in_hand ?? 0,
+                          )}
+                        </p>
+                        {rangeLabel && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Collected in selected period
+                          </p>
+                        )}
+                      </div>
+                      <Icon name="Wallet" size={24} className="text-primary" />
+                    </div>
                   </div>
                 </div>
-              </div>
               )}
             </div>
           )}
@@ -647,63 +694,6 @@ const Dashboard = () => {
           </div>
 
           {/* Recent Activity / Info Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* System Info */}
-            <div className="bg-card border border-border rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4">
-                System Information
-              </h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    Your Role
-                  </span>
-                  <span className="text-sm font-medium text-foreground capitalize">
-                    {currentUser?.role || "User"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Email</span>
-                  <span className="text-sm font-medium text-foreground">
-                    {currentUser?.email}
-                  </span>
-                </div>
-                {currentUser?.department && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      Department
-                    </span>
-                    <span className="text-sm font-medium text-foreground">
-                      {currentUser.department}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Help & Support */}
-            <div className="bg-card border border-border rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4">
-                Need Help?
-              </h3>
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  If you need assistance or have questions about the system,
-                  please contact your administrator.
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate("/executive-dashboard")}
-                  >
-                    <Icon name="BarChart3" size={16} className="mr-2" />
-                    View Reports
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </main>
     </div>

@@ -7,6 +7,23 @@ import { supabase } from "./supabase";
 const DOCUMENT_BUCKET = "tvp-owner-docs";
 const DRIVER_TABLE = "tvp_drivers";
 
+/** Compute week_start and week_end from a date string (YYYY-MM-DD) */
+const getWeekFromDate = (dateStr) => {
+  if (!dateStr) return { weekStart: null, weekEnd: null };
+  const parts = String(dateStr).split("-");
+  const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  const dayOfWeek = d.getDay();
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const pad = (n) => String(n).padStart(2, "0");
+  return {
+    weekStart: `${monday.getFullYear()}-${pad(monday.getMonth() + 1)}-${pad(monday.getDate())}`,
+    weekEnd: `${sunday.getFullYear()}-${pad(sunday.getMonth() + 1)}-${pad(sunday.getDate())}`,
+  };
+};
+
 const calculatePerformanceScore = (paymentDelayDays = 0) => {
   const delay = Number(paymentDelayDays) || 0;
   const score = 100 - delay * 5;
@@ -230,6 +247,58 @@ export const getTVPOwnerDetails = async (ownerId) => {
     return mapDriverRow(driverRow);
   } catch (error) {
     console.error("Error fetching TVP driver details:", error);
+    throw error;
+  }
+};
+
+// Get aggregated statistics for all TVP owners
+export const getTVPOwnersStatistics = async () => {
+  try {
+    const { data, error } = await supabase
+      .from(DRIVER_TABLE)
+      .select("status, outstanding_balance, deposit_amount");
+
+    if (error) throw error;
+
+    const drivers = data || [];
+
+    // Calculate totals
+    const totalOutstanding = drivers.reduce(
+      (sum, d) => sum + Number(d.outstanding_balance || 0),
+      0
+    );
+    const totalDeposit = drivers.reduce(
+      (sum, d) => sum + Number(d.deposit_amount || 0),
+      0
+    );
+
+    // Count by status
+    const statusCounts = {
+      active: 0,
+      inactive: 0,
+      pending: 0,
+      suspended: 0,
+      under_review: 0,
+    };
+    drivers.forEach((d) => {
+      const status = d.status || "active";
+      if (statusCounts[status] !== undefined) {
+        statusCounts[status]++;
+      }
+    });
+
+    return {
+      totalDrivers: drivers.length,
+      totalOutstanding,
+      totalDeposit,
+      activeCount: statusCounts.active,
+      inactiveCount: statusCounts.inactive,
+      pendingCount: statusCounts.pending,
+      suspendedCount: statusCounts.suspended,
+      underReviewCount: statusCounts.under_review,
+    };
+  } catch (error) {
+    console.error("Error fetching TVP owners statistics:", error);
     throw error;
   }
 };
@@ -870,6 +939,28 @@ export const createDriverBill = async (billData) => {
       }
     }
 
+    // Insert "bill" ledger entry in tvp_driver_payments for week-based balance tracking
+    const billAmount = Number(billData.currentOS || 0);
+    const weekStart = billData.weekStart || bill?.week_start;
+    const weekEnd = billData.weekEnd || bill?.week_end;
+    if (billAmount !== 0 && weekStart && weekEnd && bill?.id) {
+      const { error: paymentError } = await supabase
+        .from("tvp_driver_payments")
+        .insert({
+          driver_id: billData.driverId,
+          bill_id: bill.id,
+          payment_amount: billAmount,
+          payment_date: weekEnd,
+          payment_type: "bill",
+          week_start: weekStart,
+          week_end: weekEnd,
+        });
+      if (paymentError) {
+        console.error("Error inserting bill ledger entry:", paymentError);
+        // Don't throw, bill was created successfully
+      }
+    }
+
     return bill;
   } catch (error) {
     console.error("Error creating driver bill:", error);
@@ -920,6 +1011,13 @@ export const deleteDriverBill = async (billId, driverId) => {
       .select("current_os, rental_days")
       .eq("id", billId)
       .single();
+
+    // Delete the corresponding bill ledger entry in tvp_driver_payments
+    await supabase
+      .from("tvp_driver_payments")
+      .delete()
+      .eq("bill_id", billId)
+      .eq("payment_type", "bill");
 
     // Delete the bill
     const { error } = await supabase
@@ -1009,6 +1107,26 @@ export const getDriverPayments = async (driverId) => {
 // Create a payment for a driver
 export const createDriverPayment = async (paymentData) => {
   try {
+    if (!paymentData?.driverId) {
+      throw new Error("Driver ID is required");
+    }
+    const amount = Number(paymentData.paymentAmount);
+    if (isNaN(amount) || amount <= 0) {
+      throw new Error("Valid payment amount is required");
+    }
+    const paymentType = paymentData.paymentType || "penalty_paid";
+    const validTypes = [
+      "paid", "due", "refund", "deposit", "deposit_due",
+      "deposit_refund", "deposit_paid", "penalty_due", "penalty_refund", "penalty_paid",
+    ];
+    if (!validTypes.includes(paymentType)) {
+      throw new Error(`Invalid payment type: ${paymentType}`);
+    }
+    const requiresAccount = ["paid", "refund", "deposit_due", "deposit_refund", "deposit_paid", "penalty_due", "penalty_refund", "penalty_paid"];
+    if (requiresAccount.includes(paymentType) && !paymentData.account) {
+      throw new Error("Account is required for this transaction type");
+    }
+
     // Upload screenshot if provided
     let screenshotUrl = null;
     if (paymentData.screenshot) {
@@ -1034,18 +1152,26 @@ export const createDriverPayment = async (paymentData) => {
       }
     }
 
+    const paymentDate =
+      paymentData.paymentDate || new Date().toISOString().split("T")[0];
+    const { weekStart, weekEnd } =
+      paymentData.weekStart && paymentData.weekEnd
+        ? { weekStart: paymentData.weekStart, weekEnd: paymentData.weekEnd }
+        : getWeekFromDate(paymentDate);
+
     const insertPayload = {
       driver_id: paymentData.driverId,
       bill_id: paymentData.billId || null,
       payment_amount: paymentData.paymentAmount,
-      payment_date:
-        paymentData.paymentDate || new Date().toISOString().split("T")[0],
+      payment_date: paymentDate,
       payment_type: paymentData.paymentType || "paid",
       payment_method: paymentData.paymentMethod || null,
       reference_number: paymentData.referenceNumber || null,
       notes: paymentData.notes || null,
       screenshot_url: screenshotUrl,
-      account: paymentData.account || "letzryd",
+      account: (["paid", "refund", "deposit_due", "deposit_refund", "deposit_paid", "penalty_due", "penalty_refund", "penalty_paid"].includes(paymentData.paymentType))
+        ? (paymentData.account || "letzryd") : null,
+      ...(weekStart && weekEnd && { week_start: weekStart, week_end: weekEnd }),
     };
 
     let { data, error } = await supabase
@@ -1072,35 +1198,68 @@ export const createDriverPayment = async (paymentData) => {
       }
     }
 
-    // Update outstanding balance based on payment type
+    // Update balance based on payment type
+    // Deposit ledger: deposit, deposit_refund, deposit_paid (+) | deposit_due (-)
+    // Penalty ledger: bill, due, penalty_due (+) | paid, refund, penalty_refund, penalty_paid (-)
     const { data: driverRow } = await supabase
       .from(DRIVER_TABLE)
-      .select("outstanding_balance")
+      .select("outstanding_balance, deposit_amount")
       .eq("id", paymentData.driverId)
       .single();
 
     if (driverRow) {
-      const currentOutstanding = Number(driverRow.outstanding_balance || 0);
       const paymentAmount = Number(paymentData.paymentAmount || 0);
-      const paymentType = paymentData.paymentType || "paid";
+      const paymentType = paymentData.paymentType || "penalty_paid";
 
-      let newOutstanding;
-      if (paymentType === "paid") {
-        // Paid reduces outstanding balance (subtract)
-        newOutstanding = Math.max(0, currentOutstanding - paymentAmount);
-      } else {
-        // Due increases outstanding balance (add)
-        newOutstanding = currentOutstanding + paymentAmount;
-      }
+      const depositAdds = ["deposit", "deposit_refund", "deposit_paid"];
+      const depositReduces = ["deposit_due"];
+      const penaltyAdds = ["bill", "due", "penalty_due"];
+      const penaltyReduces = ["paid", "refund", "penalty_refund", "penalty_paid"];
 
-      const { error: balanceError } = await supabase
-        .from(DRIVER_TABLE)
-        .update({ outstanding_balance: newOutstanding })
-        .eq("id", paymentData.driverId);
-
-      if (balanceError) {
-        console.error("Error updating outstanding balance:", balanceError);
-        // Don't throw, payment was created successfully
+      if (depositAdds.includes(paymentType)) {
+        const currentDeposit = Number(driverRow.deposit_amount || 0);
+        const newDeposit = currentDeposit + paymentAmount;
+        const { error: depositError } = await supabase
+          .from(DRIVER_TABLE)
+          .update({ deposit_amount: newDeposit })
+          .eq("id", paymentData.driverId);
+        if (depositError) {
+          console.error("Error updating deposit amount:", depositError);
+          throw new Error(`Payment saved but failed to update deposit: ${depositError.message}`);
+        }
+      } else if (depositReduces.includes(paymentType)) {
+        const currentDeposit = Number(driverRow.deposit_amount || 0);
+        const newDeposit = Math.max(0, currentDeposit - paymentAmount);
+        const { error: depositError } = await supabase
+          .from(DRIVER_TABLE)
+          .update({ deposit_amount: newDeposit })
+          .eq("id", paymentData.driverId);
+        if (depositError) {
+          console.error("Error updating deposit amount:", depositError);
+          throw new Error(`Payment saved but failed to update deposit: ${depositError.message}`);
+        }
+      } else if (penaltyAdds.includes(paymentType)) {
+        const currentOutstanding = Number(driverRow.outstanding_balance || 0);
+        const newOutstanding = currentOutstanding + paymentAmount;
+        const { error: balanceError } = await supabase
+          .from(DRIVER_TABLE)
+          .update({ outstanding_balance: newOutstanding })
+          .eq("id", paymentData.driverId);
+        if (balanceError) {
+          console.error("Error updating outstanding balance:", balanceError);
+          throw new Error(`Payment saved but failed to update outstanding: ${balanceError.message}`);
+        }
+      } else if (penaltyReduces.includes(paymentType)) {
+        const currentOutstanding = Number(driverRow.outstanding_balance || 0);
+        const newOutstanding = currentOutstanding - paymentAmount;
+        const { error: balanceError } = await supabase
+          .from(DRIVER_TABLE)
+          .update({ outstanding_balance: newOutstanding })
+          .eq("id", paymentData.driverId);
+        if (balanceError) {
+          console.error("Error updating outstanding balance:", balanceError);
+          throw new Error(`Payment saved but failed to update outstanding: ${balanceError.message}`);
+        }
       }
     }
 
@@ -1114,6 +1273,14 @@ export const createDriverPayment = async (paymentData) => {
 // Update a payment
 export const updateDriverPayment = async (paymentId, driverId, paymentData) => {
   try {
+    if (!paymentId || !driverId) {
+      throw new Error("Payment ID and Driver ID are required");
+    }
+    const amount = Number(paymentData.paymentAmount);
+    if (isNaN(amount) || amount <= 0) {
+      throw new Error("Valid payment amount is required");
+    }
+
     const { data: existing } = await supabase
       .from("tvp_driver_payments")
       .select("payment_amount, payment_type")
@@ -1139,16 +1306,29 @@ export const updateDriverPayment = async (paymentId, driverId, paymentData) => {
       }
     }
 
+    const paymentDate = paymentData.paymentDate || existing.payment_date;
+    const { weekStart, weekEnd } =
+      paymentData.weekStart && paymentData.weekEnd
+        ? { weekStart: paymentData.weekStart, weekEnd: paymentData.weekEnd }
+        : getWeekFromDate(paymentDate);
+
     const updatePayload = {
       payment_amount: paymentData.paymentAmount,
-      payment_date: paymentData.paymentDate || existing.payment_date,
+      payment_date: paymentDate,
       payment_type: paymentData.paymentType || "paid",
       payment_method: paymentData.paymentMethod ?? null,
       reference_number: paymentData.referenceNumber ?? null,
       notes: paymentData.notes ?? null,
     };
-    if (paymentData.account != null) updatePayload.account = paymentData.account;
+    const accountTypes = ["paid", "refund", "deposit_due", "deposit_refund", "deposit_paid", "penalty_due", "penalty_refund", "penalty_paid"];
+    updatePayload.account = accountTypes.includes(paymentData.paymentType)
+      ? (paymentData.account ?? "letzryd")
+      : null;
     if (screenshotUrl != null) updatePayload.screenshot_url = screenshotUrl;
+    if (weekStart && weekEnd) {
+      updatePayload.week_start = weekStart;
+      updatePayload.week_end = weekEnd;
+    }
 
     const { data: updated, error } = await supabase
       .from("tvp_driver_payments")
@@ -1164,22 +1344,58 @@ export const updateDriverPayment = async (paymentId, driverId, paymentData) => {
     const newAmount = Number(paymentData.paymentAmount || 0);
     const newType = paymentData.paymentType || "paid";
 
+    const depositAdds = ["deposit", "deposit_refund", "deposit_paid"];
+    const depositReduces = ["deposit_due"];
+    const penaltyAdds = ["bill", "due", "penalty_due"];
+    const penaltyReduces = ["paid", "refund", "penalty_refund", "penalty_paid"];
+
     const { data: driverRow } = await supabase
       .from(DRIVER_TABLE)
-      .select("outstanding_balance")
+      .select("outstanding_balance, deposit_amount")
       .eq("id", driverId)
       .single();
 
     if (driverRow) {
-      const current = Number(driverRow.outstanding_balance || 0);
-      const reverseOld = oldType === "paid" ? oldAmount : -oldAmount;
-      const applyNew = newType === "paid" ? -newAmount : newAmount;
-      const newOutstanding = Math.max(0, current + reverseOld + applyNew);
+      const currentOutstanding = Number(driverRow.outstanding_balance || 0);
+      const currentDeposit = Number(driverRow.deposit_amount || 0);
 
-      await supabase
+      let newOutstanding = currentOutstanding;
+      let newDeposit = currentDeposit;
+
+      // Reverse old payment effect
+      if (depositAdds.includes(oldType)) {
+        newDeposit = Math.max(0, newDeposit - oldAmount);
+      } else if (depositReduces.includes(oldType)) {
+        newDeposit = newDeposit + oldAmount;
+      } else if (penaltyAdds.includes(oldType)) {
+        newOutstanding = Math.max(0, newOutstanding - oldAmount);
+      } else if (penaltyReduces.includes(oldType)) {
+        newOutstanding = newOutstanding + oldAmount;
+      }
+
+      // Apply new payment effect
+      if (depositAdds.includes(newType)) {
+        newDeposit = newDeposit + newAmount;
+      } else if (depositReduces.includes(newType)) {
+        newDeposit = Math.max(0, newDeposit - newAmount);
+      } else if (penaltyAdds.includes(newType)) {
+        newOutstanding = newOutstanding + newAmount;
+      } else if (penaltyReduces.includes(newType)) {
+        newOutstanding = newOutstanding - newAmount;
+      }
+
+      const { error: balanceError } = await supabase
         .from(DRIVER_TABLE)
-        .update({ outstanding_balance: newOutstanding })
+        .update({ 
+          outstanding_balance: newOutstanding,
+          deposit_amount: newDeposit
+        })
         .eq("id", driverId);
+
+      if (balanceError) {
+        console.error("Error updating balance:", balanceError);
+        throw new Error(`Payment updated but failed to sync balance: ${balanceError.message}`);
+      }
     }
 
     return updated;
@@ -1192,51 +1408,88 @@ export const updateDriverPayment = async (paymentId, driverId, paymentData) => {
 // Delete a payment
 export const deleteDriverPayment = async (paymentId, driverId) => {
   try {
-    // Get payment amount before deleting
-    const { data: payment } = await supabase
+    if (!paymentId) {
+      throw new Error("Payment ID is required");
+    }
+
+    const { data: payment, error: fetchError } = await supabase
       .from("tvp_driver_payments")
-      .select("payment_amount, payment_type")
+      .select("payment_amount, payment_type, driver_id")
       .eq("id", paymentId)
       .single();
 
-    // Delete the payment
-    const { error } = await supabase
+    if (fetchError || !payment) {
+      throw new Error(
+        fetchError?.message || "Payment not found. It may have been already deleted."
+      );
+    }
+
+    const targetDriverId = payment.driver_id || driverId;
+    if (!targetDriverId) {
+      throw new Error("Cannot determine driver for this payment");
+    }
+
+    const paymentAmount = Number(payment.payment_amount || 0);
+    const paymentType = payment.payment_type || "paid";
+
+    const { data: driverRow, error: driverError } = await supabase
+      .from(DRIVER_TABLE)
+      .select("outstanding_balance, deposit_amount")
+      .eq("id", targetDriverId)
+      .single();
+
+    if (driverError || !driverRow) {
+      throw new Error("Driver not found. Cannot restore balance.");
+    }
+
+    const currentOutstanding = Number(driverRow.outstanding_balance || 0);
+    const currentDeposit = Number(driverRow.deposit_amount || 0);
+
+    const depositAdds = ["deposit", "deposit_refund", "deposit_paid"];
+    const depositReduces = ["deposit_due"];
+    const penaltyAdds = ["bill", "due", "penalty_due"];
+    const penaltyReduces = ["paid", "refund", "penalty_refund", "penalty_paid"];
+
+    const updateData = {};
+    if (depositAdds.includes(paymentType)) {
+      updateData.deposit_amount = Math.max(0, currentDeposit - paymentAmount);
+    } else if (depositReduces.includes(paymentType)) {
+      updateData.deposit_amount = currentDeposit + paymentAmount;
+    } else if (penaltyAdds.includes(paymentType)) {
+      updateData.outstanding_balance = Math.max(0, currentOutstanding - paymentAmount);
+    } else if (penaltyReduces.includes(paymentType)) {
+      updateData.outstanding_balance = currentOutstanding + paymentAmount;
+    }
+
+    const { error: balanceError } = await supabase
+      .from(DRIVER_TABLE)
+      .update(updateData)
+      .eq("id", targetDriverId);
+
+    if (balanceError) {
+      console.error("Error restoring balance before delete:", balanceError);
+      throw new Error(
+        `Failed to restore balance: ${balanceError.message}. Payment was not deleted.`
+      );
+    }
+
+    const { error: deleteError } = await supabase
       .from("tvp_driver_payments")
       .delete()
       .eq("id", paymentId);
 
-    if (error) throw error;
-
-    // Restore outstanding balance: reverse the payment's effect
-    if (payment) {
-      const { data: driverRow } = await supabase
-        .from(DRIVER_TABLE)
-        .select("outstanding_balance")
-        .eq("id", driverId)
-        .single();
-
-      if (driverRow) {
-        const currentOutstanding = Number(driverRow.outstanding_balance || 0);
-        const paymentAmount = Number(payment.payment_amount || 0);
-        const wasPaid = (payment.payment_type || "paid") === "paid";
-        const newOutstanding = Math.max(
-          0,
-          currentOutstanding + (wasPaid ? paymentAmount : -paymentAmount)
-        );
-
-        const { error: balanceError } = await supabase
-          .from(DRIVER_TABLE)
-          .update({ outstanding_balance: newOutstanding })
-          .eq("id", driverId);
-
-        if (balanceError) {
-          console.error("Error updating outstanding balance:", balanceError);
-          // Don't throw, payment was deleted successfully
-        }
-      }
+    if (deleteError) {
+      console.error("Error deleting payment after balance restore:", deleteError);
+      throw new Error(
+        `Balance was restored but failed to delete payment: ${deleteError.message}. Please refresh and try again.`
+      );
     }
 
-    return true;
+    return {
+      success: true,
+      outstandingBalance: updateData.outstanding_balance ?? currentOutstanding,
+      depositAmount: updateData.deposit_amount ?? currentDeposit,
+    };
   } catch (error) {
     console.error("Error deleting driver payment:", error);
     throw error;
@@ -1274,12 +1527,26 @@ export const getTotalOutstandingBalance = async (driverId) => {
 };
 
 // Get bill summary statistics for all drivers
-// Optional { dateFrom, dateTo }: filter by bill week overlap; else sum all drivers' outstanding_balance
+// Optional { dateFrom, dateTo }: when provided, returns week-based balance from payments ledger
+// liveOutstanding = sum of drivers' outstanding_balance (all-time)
+// weekBalanceToCollect = (bills for week) - (payments for week) when date range is provided
 export const getBillSummaryStatistics = async (opts = {}) => {
   try {
     const { dateFrom, dateTo } = opts;
 
+    // Always fetch live outstanding (sum of outstanding_balance) - used when no week selected
+    const { data: drivers, error: driversError } = await supabase
+      .from(DRIVER_TABLE)
+      .select("outstanding_balance");
+
+    if (driversError) throw driversError;
+
+    const liveOutstanding = (drivers || []).reduce((sum, driver) => {
+      return sum + Number(driver.outstanding_balance || 0);
+    }, 0);
+
     if (dateFrom && dateTo) {
+      // Bills for week: from tvp_driver_bills (source of truth)
       const { data: bills, error } = await supabase
         .from("tvp_driver_bills")
         .select("current_os")
@@ -1294,20 +1561,45 @@ export const getBillSummaryStatistics = async (opts = {}) => {
         return sum + Number(b.current_os || 0);
       }, 0);
 
-      return { totalOutstandingAmount };
+      // Payments for week: paid/due/refund from tvp_driver_payments
+      const { data: payments, error: paymentsError } = await supabase
+        .from("tvp_driver_payments")
+        .select("payment_type, payment_amount, week_start, week_end, payment_date");
+
+      if (paymentsError) throw paymentsError;
+
+      const overlapsWeek = (row) => {
+        if (row?.week_start && row?.week_end) {
+          return row.week_start <= dateTo && row.week_end >= dateFrom;
+        }
+        return row?.payment_date >= dateFrom && row?.payment_date <= dateTo;
+      };
+
+      let paymentsSum = 0;
+      let dueSum = 0;
+      (payments || []).forEach((row) => {
+        if (!overlapsWeek(row)) return;
+        const amt = Number(row?.payment_amount || 0);
+        if (["paid", "refund", "penalty_refund", "penalty_paid"].includes(row?.payment_type)) {
+          paymentsSum += amt;
+        } else if (["due", "penalty_due"].includes(row?.payment_type)) {
+          dueSum += amt;
+        }
+      });
+
+      // Balance to collect = bills for week - due (reduces) - paid/refund (reduces)
+      const weekBalanceToCollect = Math.max(0, totalOutstandingAmount - dueSum - paymentsSum);
+      const totalOutstandingForWeek = Math.max(0, totalOutstandingAmount - dueSum);
+
+      return {
+        totalOutstandingAmount,
+        totalOutstandingForWeek,
+        liveOutstanding,
+        weekBalanceToCollect,
+      };
     }
 
-    const { data: drivers, error: driversError } = await supabase
-      .from(DRIVER_TABLE)
-      .select("outstanding_balance");
-
-    if (driversError) throw driversError;
-
-    const totalOutstandingAmount = (drivers || []).reduce((sum, driver) => {
-      return sum + Number(driver.outstanding_balance || 0);
-    }, 0);
-
-    return { totalOutstandingAmount };
+    return { totalOutstandingAmount: liveOutstanding, liveOutstanding, weekBalanceToCollect: null, totalOutstandingForWeek: null };
   } catch (error) {
     console.error("Error getting bill summary statistics:", error);
     throw error;
@@ -1315,14 +1607,15 @@ export const getBillSummaryStatistics = async (opts = {}) => {
 };
 
 // Total amount collected per account (paid payments only), across all drivers
-// Optional { dateFrom, dateTo }: filter by payment_date
+// Only counts payments where account was explicitly selected (LetzRyd, Tawaaq Fleet, Cash In hand)
+// Optional { dateFrom, dateTo }: filter by payment_date (selected week) - only payments in that week are shown
 export const getPaymentsSummaryByAccount = async (opts = {}) => {
   try {
     const { dateFrom, dateTo } = opts;
     let q = supabase
       .from("tvp_driver_payments")
       .select("account, payment_amount")
-      .eq("payment_type", "paid");
+      .in("payment_type", ["paid", "penalty_paid"]);
 
     if (dateFrom) q = q.gte("payment_date", dateFrom);
     if (dateTo) q = q.lte("payment_date", dateTo);
@@ -1333,14 +1626,66 @@ export const getPaymentsSummaryByAccount = async (opts = {}) => {
 
     const totals = { letzryd: 0, tawaaq_fleet: 0, cash_in_hand: 0 };
     (data || []).forEach((row) => {
-      const k =
-        row?.account && totals[row.account] !== undefined ? row.account : "letzryd";
-      totals[k] += Number(row?.payment_amount) || 0;
+      // Only count payments where account was explicitly selected as one of our three
+      const k = row?.account;
+      if (k && totals[k] !== undefined) {
+        totals[k] += Number(row?.payment_amount) || 0;
+      }
     });
     return totals;
   } catch (error) {
     console.error("Error getting payments summary by account:", error);
     return { letzryd: 0, tawaaq_fleet: 0, cash_in_hand: 0 };
+  }
+};
+
+// Deposit summary: total deposit across drivers + deposit/deposit_due in period
+// Optional { dateFrom, dateTo }: filter payments by week overlap
+export const getDepositSummary = async (opts = {}) => {
+  try {
+    const { dateFrom, dateTo } = opts;
+
+    // Total deposit across all drivers (live)
+    const { data: drivers, error: driversError } = await supabase
+      .from(DRIVER_TABLE)
+      .select("deposit_amount");
+
+    if (driversError) throw driversError;
+
+    const totalDeposit = (drivers || []).reduce((sum, d) => {
+      return sum + Number(d?.deposit_amount || 0);
+    }, 0);
+
+    if (!dateFrom || !dateTo) {
+      return { totalDeposit, depositInPeriod: 0, depositDueInPeriod: 0 };
+    }
+
+    const { data: payments, error: paymentsError } = await supabase
+      .from("tvp_driver_payments")
+      .select("payment_type, payment_amount, week_start, week_end, payment_date");
+
+    if (paymentsError) throw paymentsError;
+
+    const overlapsWeek = (row) => {
+      if (row?.week_start && row?.week_end) {
+        return row.week_start <= dateTo && row.week_end >= dateFrom;
+      }
+      return row?.payment_date >= dateFrom && row?.payment_date <= dateTo;
+    };
+
+    let depositInPeriod = 0;
+    let depositDueInPeriod = 0;
+    (payments || []).forEach((row) => {
+      if (!overlapsWeek(row)) return;
+      const amt = Number(row?.payment_amount || 0);
+      if (["deposit", "deposit_due"].includes(row?.payment_type)) depositInPeriod += amt;
+      else if (["deposit_refund", "deposit_paid"].includes(row?.payment_type)) depositDueInPeriod += amt;
+    });
+
+    return { totalDeposit, depositInPeriod, depositDueInPeriod };
+  } catch (error) {
+    console.error("Error getting deposit summary:", error);
+    throw error;
   }
 };
 
@@ -1414,18 +1759,52 @@ export const createMultiVehicleBill = async (hissabData) => {
       ),
       dead_km: vehicles.reduce((sum, v) => sum + (v.billData.deadKm || 0), 0),
       current_os: totals.finalAmount,
+      week_start: week?.weekStart || null,
+      week_end: week?.weekEnd || null,
       invoice_html: invoiceHtml,
       status: "generated",
     };
 
-    const { data, error } = await supabase
+    const { data: bill, error } = await supabase
       .from("tvp_driver_bills")
       .insert(mainBillData)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+
+    // Update outstanding balance
+    const billAmount = Number(totals.finalAmount || 0);
+    if (billAmount !== 0 && owner?.id) {
+      const { data: driverRow } = await supabase
+        .from(DRIVER_TABLE)
+        .select("outstanding_balance")
+        .eq("id", owner.id)
+        .single();
+      const currentOutstanding = Number(driverRow?.outstanding_balance || 0);
+      const newOutstanding = currentOutstanding + billAmount;
+      await supabase
+        .from(DRIVER_TABLE)
+        .update({ outstanding_balance: newOutstanding })
+        .eq("id", owner.id);
+    }
+
+    // Insert bill ledger entry for week-based balance tracking
+    const weekStart = week?.weekStart || bill?.week_start;
+    const weekEnd = week?.weekEnd || bill?.week_end;
+    if (billAmount !== 0 && weekStart && weekEnd && bill?.id) {
+      await supabase.from("tvp_driver_payments").insert({
+        driver_id: owner.id,
+        bill_id: bill.id,
+        payment_amount: billAmount,
+        payment_date: weekEnd,
+        payment_type: "bill",
+        week_start: weekStart,
+        week_end: weekEnd,
+      });
+    }
+
+    return bill;
   } catch (error) {
     console.error("Error creating multi-vehicle bill:", error);
     throw error;
@@ -1464,6 +1843,8 @@ export const createDraftBill = async (billData) => {
         accident: billData.accident || 0,
         dead_km: billData.deadKm || 0,
         current_os: billData.currentOS || 0,
+        week_start: billData.weekStart || null,
+        week_end: billData.weekEnd || null,
         invoice_html: null,
         status: "draft",
       })
@@ -1511,8 +1892,8 @@ export const bulkCreateDraftBills = async (billsData) => {
         dead_km: billData.deadKm || 0,
         room_rent: billData.roomRent || 0,
         current_os: billData.currentOS || 0,
-        week_start: billData.weekStart || null,
-        week_end: billData.weekEnd || null,
+        week_start: billData.weekStart ?? null,
+        week_end: billData.weekEnd ?? null,
         invoice_html: null,
         status: "draft",
       };
@@ -1795,6 +2176,46 @@ export const finalizeBill = async (billId) => {
       .single();
 
     if (error) throw error;
+
+    // Update outstanding balance when finalizing draft (draft bills don't update OS on creation)
+    const billAmount = Number(bill.current_os || 0);
+    if (billAmount !== 0 && bill.driver_id) {
+      const { data: driverRow } = await supabase
+        .from(DRIVER_TABLE)
+        .select("outstanding_balance")
+        .eq("id", bill.driver_id)
+        .single();
+      const currentOutstanding = Number(driverRow?.outstanding_balance || 0);
+      const newOutstanding = currentOutstanding + billAmount;
+      const { error: balanceError } = await supabase
+        .from(DRIVER_TABLE)
+        .update({ outstanding_balance: newOutstanding })
+        .eq("id", bill.driver_id);
+      if (balanceError) {
+        console.error("Error updating outstanding balance on finalize:", balanceError);
+      }
+    }
+
+    // Insert "bill" ledger entry for week-based balance tracking
+    const weekStart = bill.week_start;
+    const weekEnd = bill.week_end;
+    if (billAmount !== 0 && weekStart && weekEnd && bill.driver_id) {
+      const { error: paymentError } = await supabase
+        .from("tvp_driver_payments")
+        .insert({
+          driver_id: bill.driver_id,
+          bill_id: billId,
+          payment_amount: billAmount,
+          payment_date: weekEnd,
+          payment_type: "bill",
+          week_start: weekStart,
+          week_end: weekEnd,
+        });
+      if (paymentError) {
+        console.error("Error inserting bill ledger entry on finalize:", paymentError);
+      }
+    }
+
     return data;
   } catch (error) {
     console.error("Error finalizing bill:", error);
