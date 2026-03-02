@@ -7,7 +7,7 @@ import { useAdminSettings } from "../../../hooks/useAdminSettings";
 import WeekSelector, {
   calculatePreviousWeek,
 } from "../../hissab-accounting-generator/components/WeekSelector";
-import { getActiveVehicles } from "../../../lib/tvpManagementAPI";
+import { getActiveVehicles, getAccidentPenaltyForWeek } from "../../../lib/tvpManagementAPI";
 
 const BillFormModal = ({
   isOpen,
@@ -43,6 +43,7 @@ const BillFormModal = ({
   const [weekRange, setWeekRange] = useState(calculatePreviousWeek());
   const [allActiveVehicles, setAllActiveVehicles] = useState([]);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
+  const [accidentPenaltyForWeek, setAccidentPenaltyForWeek] = useState(0);
   const {
     calculateFleetRent,
     fleetRentSlabs,
@@ -57,6 +58,19 @@ const BillFormModal = ({
       loadAllActiveVehicles();
     }
   }, [isOpen, loadSettings]);
+
+  // Fetch accident penalty for selected week (accident_due) when driver or week changes
+  useEffect(() => {
+    if (!isOpen || !driver?.id || !weekRange?.weekStart || !weekRange?.weekEnd) {
+      setAccidentPenaltyForWeek(0);
+      return;
+    }
+    let cancelled = false;
+    getAccidentPenaltyForWeek(driver.id, weekRange.weekStart, weekRange.weekEnd).then((sum) => {
+      if (!cancelled) setAccidentPenaltyForWeek(sum || 0);
+    });
+    return () => { cancelled = true; };
+  }, [isOpen, driver?.id, weekRange?.weekStart, weekRange?.weekEnd]);
 
   // Load all active vehicles from database
   const loadAllActiveVehicles = async () => {
@@ -201,24 +215,29 @@ const BillFormModal = ({
     difference,
   ]);
 
+  // Include driver's assigned vehicles in options so pre-filled values show (they may not be in active list)
+  const vehicleOptionsWithDriver = useMemo(() => {
+    const fromApi = allActiveVehicles || [];
+    const raw = driver?.vehicleNumbers ?? driver?.vehicle_numbers;
+    const assigned = Array.isArray(raw)
+      ? raw.map((v) => (v != null ? String(v).trim() : "")).filter(Boolean)
+      : raw != null && String(raw).trim() !== ""
+        ? [String(raw).trim()]
+        : [];
+    const notInApi = assigned.filter(
+      (v) => !fromApi.some((o) => String(o?.value).trim() === String(v).trim()),
+    );
+    const extra = notInApi.map((v) => ({ value: v, label: v }));
+    return [...fromApi, ...extra];
+  }, [allActiveVehicles, driver?.vehicleNumbers, driver?.vehicle_numbers]);
+
   // Get available vehicles (not already selected in other vehicle entries)
   const getAvailableVehicles = (currentVehicleId) => {
     const selectedVehicles = vehicles
       .filter((v) => v.id !== currentVehicleId && v.vehicleNumber)
       .map((v) => v.vehicleNumber);
 
-    // If no active vehicles loaded yet, fall back to driver's vehicles
-    if (allActiveVehicles.length === 0 && driver?.vehicleNumbers) {
-      const driverVehicleOptions = driver.vehicleNumbers.map((plate) => ({
-        value: plate,
-        label: plate,
-      }));
-      return driverVehicleOptions.filter(
-        (opt) => !selectedVehicles.includes(opt.value),
-      );
-    }
-
-    return allActiveVehicles.filter(
+    return vehicleOptionsWithDriver.filter(
       (opt) => !selectedVehicles.includes(opt.value),
     );
   };
@@ -256,15 +275,34 @@ const BillFormModal = ({
       return;
     }
 
-    setVehicles([
-      {
-        id: 1,
-        vehicleNumber: driver.vehicleNumbers?.[0] || "",
-        rentalDays: "",
-        trips: "",
-        dailyRent: "",
-      },
-    ]);
+    // Use tvp_drivers.vehicle_numbers (or vehicleNumbers from mapDriverRow) to pre-fill assigned vehicles
+    const raw = driver.vehicleNumbers ?? driver.vehicle_numbers;
+    const assignedNumbers = Array.isArray(raw)
+      ? raw.map((v) => (v != null ? String(v).trim() : "")).filter(Boolean)
+      : raw != null && String(raw).trim() !== ""
+        ? [String(raw).trim()]
+        : [];
+
+    const initialVehicles =
+      assignedNumbers.length > 0
+        ? assignedNumbers.map((num, index) => ({
+            id: index + 1,
+            vehicleNumber: num,
+            rentalDays: "",
+            trips: "",
+            dailyRent: "",
+          }))
+        : [
+            {
+              id: 1,
+              vehicleNumber: "",
+              rentalDays: "",
+              trips: "",
+              dailyRent: "",
+            },
+          ];
+
+    setVehicles(initialVehicles);
     setFormData({
       weeklyInsurance: "210",
       doubleDriverCharge: isDoubleDriverCategory ? "350" : "",
@@ -800,6 +838,12 @@ const BillFormModal = ({
 
           {/* Current OS Display */}
           <div className="p-4 bg-success/5 rounded-lg border border-success/20">
+            {accidentPenaltyForWeek > 0 && (
+              <div className="flex items-center justify-between text-sm mb-2 pb-2 border-b border-border">
+                <span className="text-muted-foreground">Accident penalty (this week)</span>
+                <span className="font-medium text-foreground">+{Number(accidentPenaltyForWeek).toFixed(2)} INR</span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-sm font-medium text-foreground">
@@ -809,15 +853,16 @@ const BillFormModal = ({
                   {isIncludingRoom
                     ? "Net Rent + Room Rent - Toll + Driver Pass + TDS - Vehicle Adjustment + RTO + Accident + Dead KM + Difference"
                     : "Net Rent - Toll + Driver Pass + TDS - Vehicle Adjustment + RTO + Accident + Dead KM + Difference (no room rent)"}
+                  {accidentPenaltyForWeek > 0 && " + Accident penalty (this week)"}
                 </p>
               </div>
               <span
                 className={`text-xl font-bold ${
-                  currentOS >= 0 ? "text-success" : "text-error"
+                  (currentOS + accidentPenaltyForWeek) >= 0 ? "text-success" : "text-error"
                 }`}
               >
-                {currentOS >= 0 ? "+" : ""}
-                {currentOS.toFixed(2)} INR
+                {(currentOS + accidentPenaltyForWeek) >= 0 ? "+" : ""}
+                {(currentOS + accidentPenaltyForWeek).toFixed(2)} INR
               </span>
             </div>
           </div>

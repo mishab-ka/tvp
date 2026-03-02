@@ -10,6 +10,10 @@ import {
   PAYMENT_TYPES_REQUIRING_ACCOUNT,
   getPaymentTypeLabel,
 } from "../../../utils/accounts";
+import {
+  calculatePreviousWeek,
+  calculateWeekFromDate,
+} from "../../../pages/hissab-accounting-generator/components/WeekSelector";
 
 const TransactionModal = ({
   isOpen,
@@ -27,6 +31,8 @@ const TransactionModal = ({
     account: "",
     paymentAmount: "",
     paymentDate: new Date().toISOString().split("T")[0],
+    weekStart: "",
+    weekEnd: "",
     paymentMethod: "",
     referenceNumber: "",
     notes: "",
@@ -35,20 +41,27 @@ const TransactionModal = ({
   });
   const screenshotRef = React.useRef(null);
 
+  const defaultWeek = React.useMemo(() => calculatePreviousWeek(), []);
+
   React.useEffect(() => {
     if (isOpen) {
+      const week = initialForm.weekStart && initialForm.weekEnd
+        ? { weekStart: initialForm.weekStart, weekEnd: initialForm.weekEnd }
+        : defaultWeek;
       setForm({
         paymentType: initialForm.paymentType ?? (ledger === "deposit" ? "deposit_due" : "penalty_due"),
         account: initialForm.account ?? "",
         paymentAmount: initialForm.paymentAmount ?? "",
         paymentDate: initialForm.paymentDate ?? new Date().toISOString().split("T")[0],
+        weekStart: initialForm.weekStart ?? week.weekStart ?? "",
+        weekEnd: initialForm.weekEnd ?? week.weekEnd ?? "",
         paymentMethod: initialForm.paymentMethod ?? "",
         referenceNumber: initialForm.referenceNumber ?? "",
         notes: initialForm.notes ?? "",
         screenshot: null,
       });
     }
-  }, [isOpen, ledger, initialForm.paymentType, initialForm.account, initialForm.paymentAmount, initialForm.paymentDate, initialForm.paymentMethod, initialForm.referenceNumber, initialForm.notes]);
+  }, [isOpen, ledger, defaultWeek, initialForm.paymentType, initialForm.account, initialForm.paymentAmount, initialForm.paymentDate, initialForm.weekStart, initialForm.weekEnd, initialForm.paymentMethod, initialForm.referenceNumber, initialForm.notes]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -75,7 +88,7 @@ const TransactionModal = ({
             <div>
               <h2 className="text-lg font-semibold text-foreground">{isEdit ? "Edit" : "Add"} {title}</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {ledger === "deposit" ? "Due reduces deposit; Refund/Paid add to deposit" : "Due increases outstanding; Paid/Refund reduce outstanding"}
+                {ledger === "deposit" ? "Due reduces deposit; Refund/Paid add to deposit" : "Due increases outstanding; Paid/Refund reduce outstanding. Other: add to bill for selected week."}
               </p>
             </div>
           </div>
@@ -93,7 +106,15 @@ const TransactionModal = ({
             <Select
               label="Transaction Type"
               value={form.paymentType}
-              onChange={(v) => setForm({ ...form, paymentType: v ?? form.paymentType })}
+              onChange={(v) => {
+                const newType = v ?? form.paymentType;
+                const updates = { ...form, paymentType: newType };
+                if ((newType === "penalty_other" || newType === "accident_due") && (!form.weekStart || !form.weekEnd)) {
+                  updates.weekStart = defaultWeek.weekStart;
+                  updates.weekEnd = defaultWeek.weekEnd;
+                }
+                setForm(updates);
+              }}
               options={options}
               required
             />
@@ -106,6 +127,28 @@ const TransactionModal = ({
                 onChange={(v) => setForm({ ...form, account: v ?? "" })}
                 placeholder="Select account"
               />
+            )}
+            {ledger === "penalty" && (form.paymentType === "penalty_other" || form.paymentType === "accident_due") && (
+              <>
+                <Input
+                  label="Week start (Monday)"
+                  type="date"
+                  value={form.weekStart}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const week = calculateWeekFromDate(v);
+                    setForm((f) => ({ ...f, weekStart: week.weekStart, weekEnd: week.weekEnd }));
+                  }}
+                  required
+                />
+                <Input
+                  label="Week end (Sunday)"
+                  type="date"
+                  value={form.weekEnd}
+                  onChange={(e) => setForm({ ...form, weekEnd: e.target.value })}
+                  required
+                />
+              </>
             )}
             <Input
               label="Amount (₹)"
@@ -165,6 +208,7 @@ const TransactionModal = ({
               disabled={
                 !form.paymentAmount ||
                 (PAYMENT_TYPES_REQUIRING_ACCOUNT.includes(form.paymentType) && !form.account) ||
+                ((form.paymentType === "penalty_other" || form.paymentType === "accident_due") && (!form.weekStart || !form.weekEnd)) ||
                 submitting
               }
               className={
@@ -174,8 +218,10 @@ const TransactionModal = ({
                   ? "bg-amber-600 hover:bg-amber-700"
                   : ["penalty_refund"].includes(form.paymentType)
                   ? "bg-blue-600 hover:bg-blue-700"
-                  : ["penalty_due", "due"].includes(form.paymentType)
+                  : ["penalty_due", "due", "accident_due"].includes(form.paymentType)
                   ? "bg-amber-600 hover:bg-amber-700"
+                  : form.paymentType === "penalty_other"
+                  ? "bg-muted hover:bg-muted/90 text-foreground"
                   : "bg-emerald-600 hover:bg-emerald-700"
               }
             >

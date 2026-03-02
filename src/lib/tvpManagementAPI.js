@@ -145,7 +145,12 @@ const resolveDriverDocuments = async (
 
 const mapDriverRow = (row) => {
   if (!row) return null;
-  const vehicleNumbers = row.vehicle_numbers || [];
+  const raw = row.vehicle_numbers;
+  const vehicleNumbers = Array.isArray(raw)
+    ? raw.map((v) => (v != null ? String(v).trim() : "")).filter(Boolean)
+    : raw != null && String(raw).trim() !== ""
+      ? [String(raw).trim()]
+      : [];
   const documents = extractDocumentsFromRow(row);
 
   return {
@@ -187,6 +192,7 @@ const mapDriverRow = (row) => {
     alternativePhone3: row.alternative_phone_3 || row?.alternative_phone_3 || "",
     uberDriverPhotos: row.uber_driver_photos || row?.uber_driver_photos || [],
     includingRoom: !!(row.including_room ?? row?.including_room),
+    penaltyAmount: Number(row.penalty_amount || 0),
     documents,
     recentTransactions: row.recent_transactions || [],
     transactions: row.transactions || [],
@@ -336,6 +342,7 @@ export const createTVPOwner = async (formValues) => {
         alternative_phone_2: formValues.alternativePhone2 || null,
         alternative_phone_3: formValues.alternativePhone3 || null,
         uber_driver_photos: [],
+        penalty_amount: formValues.penaltyAmount ?? 0,
       };
       if (includeIncludingRoom) base.including_room = !!formValues.includingRoom;
       return base;
@@ -480,7 +487,10 @@ export const updateTVPOwner = async (ownerId, formValues) => {
           formValues.totalEarnings ?? existingRow.total_earnings ?? 0,
         total_cash_collect:
           formValues.totalCashCollect ?? existingRow.total_cash_collect ?? 0,
-        vehicle_numbers: formValues.vehicleNumbers ?? existingRow.vehicle_numbers,
+        vehicle_numbers:
+          Array.isArray(formValues.vehicleNumbers)
+            ? formValues.vehicleNumbers
+            : (existingRow.vehicle_numbers ?? []),
         room_deposit: formValues.roomDeposit ?? existingRow.room_deposit ?? 0,
         pre_paid_rent_amount: formValues.prePaidRentAmount ?? existingRow.pre_paid_rent_amount ?? 0,
         documents_charge: formValues.documentsCharge ?? existingRow.documents_charge ?? 0,
@@ -488,6 +498,7 @@ export const updateTVPOwner = async (ownerId, formValues) => {
         alternative_phone_2: formValues.alternativePhone2 ?? existingRow.alternative_phone_2 ?? null,
         alternative_phone_3: formValues.alternativePhone3 ?? existingRow.alternative_phone_3 ?? null,
         uber_driver_photos: uberPhotoUrls,
+        penalty_amount: formValues.penaltyAmount ?? existingRow.penalty_amount ?? 0,
         ...docColumns,
       };
       if (includeIncludingRoom) {
@@ -837,13 +848,78 @@ export const getVehicleStatistics = async () => {
 
 // ===== BILL / INVOICE MANAGEMENT =====
 
+/** Get sum of unapplied accident_due for a driver and week (for bill preview / form) */
+export const getAccidentPenaltyForWeek = async (driverId, weekStart, weekEnd) => {
+  if (!driverId || !weekStart || !weekEnd) return 0;
+  try {
+    const { data: rows } = await supabase
+      .from("tvp_driver_payments")
+      .select("payment_amount")
+      .eq("driver_id", driverId)
+      .eq("payment_type", "accident_due")
+      .is("applied_bill_id", null)
+      .eq("week_start", weekStart)
+      .eq("week_end", weekEnd);
+    return (rows || []).reduce((sum, r) => sum + Number(r.payment_amount || 0), 0);
+  } catch (e) {
+    console.error("Error fetching accident penalty for week:", e);
+    return 0;
+  }
+};
+
 // Create a new bill/invoice for a driver
 export const createDriverBill = async (billData) => {
   try {
     const billNumber = `INV-${Date.now()}-${billData.driverId
       .slice(-6)
       .toUpperCase()}`;
-    
+
+    // Fetch driver's pending penalty to apply to this bill
+    const { data: driverRowForPenalty } = await supabase
+      .from(DRIVER_TABLE)
+      .select("penalty_amount")
+      .eq("id", billData.driverId)
+      .single();
+    const driverPenalty = Number(driverRowForPenalty?.penalty_amount || 0);
+    const baseCurrentOS = Number(billData.currentOS || 0);
+    const penaltyToApply = Math.max(0, driverPenalty);
+
+    // Fetch penalty_other (week-based "Other") for this driver and bill week; apply to bill
+    let penaltyOtherSum = 0;
+    let penaltyOtherRows = [];
+    const weekStart = billData.weekStart || null;
+    const weekEnd = billData.weekEnd || null;
+    if (weekStart && weekEnd) {
+      const { data: otherRows } = await supabase
+        .from("tvp_driver_payments")
+        .select("id, payment_amount")
+        .eq("driver_id", billData.driverId)
+        .eq("payment_type", "penalty_other")
+        .is("applied_bill_id", null)
+        .eq("week_start", weekStart)
+        .eq("week_end", weekEnd);
+      penaltyOtherRows = otherRows || [];
+      penaltyOtherSum = penaltyOtherRows.reduce((sum, r) => sum + Number(r.payment_amount || 0), 0);
+    }
+
+    // Fetch accident_due (week-based accident penalty) for this driver and bill week
+    let accidentPenaltySum = 0;
+    let accidentDueRows = [];
+    if (weekStart && weekEnd) {
+      const { data: accidentRows } = await supabase
+        .from("tvp_driver_payments")
+        .select("id, payment_amount")
+        .eq("driver_id", billData.driverId)
+        .eq("payment_type", "accident_due")
+        .is("applied_bill_id", null)
+        .eq("week_start", weekStart)
+        .eq("week_end", weekEnd);
+      accidentDueRows = accidentRows || [];
+      accidentPenaltySum = accidentDueRows.reduce((sum, r) => sum + Number(r.payment_amount || 0), 0);
+    }
+
+    const finalCurrentOS = baseCurrentOS + penaltyToApply + penaltyOtherSum + accidentPenaltySum;
+
     // Prepare vehicles breakdown array
     const vehiclesBreakdown = billData.vehicles ? billData.vehicles.map(v => ({
       vehicleNumber: v.vehicleNumber,
@@ -853,7 +929,7 @@ export const createDriverBill = async (billData) => {
       vehicleRent: (Number(v.dailyRent) || 0) * (Number(v.rentalDays) || 0),
     })) : [];
 
-    // Insert the bill
+    // Insert the bill (current_os includes penalty; penalty_amount stored for invoice/audit)
     const { data: bill, error: billError } = await supabase
       .from("tvp_driver_bills")
       .insert({
@@ -879,7 +955,10 @@ export const createDriverBill = async (billData) => {
         accident: billData.accident || 0,
         dead_km: billData.deadKm || 0,
         room_rent: billData.roomRent || 0,
-        current_os: billData.currentOS || 0,
+        penalty_amount: penaltyToApply,
+        penalty_other_amount: penaltyOtherSum,
+        accident_penalty_amount: accidentPenaltySum,
+        current_os: finalCurrentOS,
         week_start: billData.weekStart || null,
         week_end: billData.weekEnd || null,
         vehicles_breakdown: vehiclesBreakdown.length > 0 ? vehiclesBreakdown : null,
@@ -890,6 +969,26 @@ export const createDriverBill = async (billData) => {
       .single();
 
     if (billError) throw billError;
+
+    // Regenerate invoice HTML with final amount (including penalty) so stored invoice is correct
+    const invoicePayload = {
+      ...billData,
+      currentOS: finalCurrentOS,
+      penaltyAmount: penaltyToApply,
+      penaltyOtherAmount: penaltyOtherSum,
+      accidentPenaltyAmount: accidentPenaltySum,
+      billNumber: bill.bill_number,
+    };
+    const correctInvoiceHtml = generateInvoiceHTML(invoicePayload);
+    const { data: updatedBill, error: updateInvError } = await supabase
+      .from("tvp_driver_bills")
+      .update({ invoice_html: correctInvoiceHtml })
+      .eq("id", bill.id)
+      .select()
+      .single();
+    if (!updateInvError && updatedBill) {
+      Object.assign(bill, updatedBill);
+    }
 
     // Accumulate rental days: add new rental days to cumulative_rental_days
     const rentalDaysToAdd = Number(billData.rentalDays || 0);
@@ -916,8 +1015,8 @@ export const createDriverBill = async (billData) => {
       }
     }
 
-    // Update outstanding balance with the final amount (current_os)
-    const finalAmount = Number(billData.currentOS || 0);
+    // Update outstanding balance with the final amount (current_os, includes penalty)
+    const finalAmount = finalCurrentOS;
     if (finalAmount !== 0) {
       const { data: driverRow } = await supabase
         .from(DRIVER_TABLE)
@@ -939,10 +1038,72 @@ export const createDriverBill = async (billData) => {
       }
     }
 
+    // Reduce driver's pending penalty by the amount applied to this bill
+    if (penaltyToApply > 0) {
+      const newDriverPenalty = Math.max(0, driverPenalty - penaltyToApply);
+      await supabase
+        .from(DRIVER_TABLE)
+        .update({ penalty_amount: newDriverPenalty })
+        .eq("id", billData.driverId);
+    }
+
+    // Reduce driver penalty_amount by accident penalty applied (accident_due for this week)
+    if (accidentPenaltySum > 0) {
+      const { data: driverPenaltyRow } = await supabase
+        .from(DRIVER_TABLE)
+        .select("penalty_amount")
+        .eq("id", billData.driverId)
+        .single();
+      const currentPenalty = Number(driverPenaltyRow?.penalty_amount || 0);
+      const newPenalty = Math.max(0, currentPenalty - accidentPenaltySum);
+      await supabase
+        .from(DRIVER_TABLE)
+        .update({ penalty_amount: newPenalty })
+        .eq("id", billData.driverId);
+    }
+
+    // Mark accident_due rows as applied and add accident_paid so ledger shows "paid"
+    if (accidentDueRows.length > 0 && bill?.id) {
+      await supabase
+        .from("tvp_driver_payments")
+        .update({ applied_bill_id: bill.id })
+        .in("id", accidentDueRows.map((r) => r.id));
+      if (accidentPenaltySum > 0) {
+        await createDriverPayment({
+          driverId: billData.driverId,
+          paymentType: "accident_paid",
+          account: "letzryd",
+          paymentAmount: accidentPenaltySum,
+          paymentDate: weekEnd || new Date().toISOString().split("T")[0],
+          weekStart: weekStart || undefined,
+          weekEnd: weekEnd || undefined,
+          notes: "Auto: Accident penalty applied to bill",
+        });
+      }
+    }
+
+    // Mark penalty_other rows as applied and add penalty_paid so ledger shows "paid"
+    if (penaltyOtherRows.length > 0 && bill?.id) {
+      await supabase
+        .from("tvp_driver_payments")
+        .update({ applied_bill_id: bill.id })
+        .in("id", penaltyOtherRows.map((r) => r.id));
+      if (penaltyOtherSum > 0) {
+        await createDriverPayment({
+          driverId: billData.driverId,
+          paymentType: "penalty_paid",
+          account: "letzryd",
+          paymentAmount: penaltyOtherSum,
+          paymentDate: weekEnd || new Date().toISOString().split("T")[0],
+          weekStart: weekStart || undefined,
+          weekEnd: weekEnd || undefined,
+          notes: "Auto: Other (week-based) applied to bill",
+        });
+      }
+    }
+
     // Insert "bill" ledger entry in tvp_driver_payments for week-based balance tracking
-    const billAmount = Number(billData.currentOS || 0);
-    const weekStart = billData.weekStart || bill?.week_start;
-    const weekEnd = billData.weekEnd || bill?.week_end;
+    const billAmount = finalCurrentOS;
     if (billAmount !== 0 && weekStart && weekEnd && bill?.id) {
       const { error: paymentError } = await supabase
         .from("tvp_driver_payments")
@@ -1117,12 +1278,18 @@ export const createDriverPayment = async (paymentData) => {
     const paymentType = paymentData.paymentType || "penalty_paid";
     const validTypes = [
       "paid", "due", "refund", "deposit", "deposit_due",
-      "deposit_refund", "deposit_paid", "penalty_due", "penalty_refund", "penalty_paid",
+      "deposit_refund", "deposit_paid", "penalty_due", "penalty_refund", "penalty_paid", "penalty_other",
+      "accident_due", "accident_paid",
     ];
     if (!validTypes.includes(paymentType)) {
       throw new Error(`Invalid payment type: ${paymentType}`);
     }
-    const requiresAccount = ["paid", "refund", "deposit_due", "deposit_refund", "deposit_paid", "penalty_due", "penalty_refund", "penalty_paid"];
+    if (paymentType === "penalty_other" || paymentType === "accident_due") {
+      if (!paymentData.weekStart || !paymentData.weekEnd) {
+        throw new Error("Week start and week end are required for this transaction type");
+      }
+    }
+    const requiresAccount = ["paid", "refund", "deposit_due", "deposit_refund", "deposit_paid", "penalty_due", "penalty_refund", "penalty_paid", "accident_paid"];
     if (requiresAccount.includes(paymentType) && !paymentData.account) {
       throw new Error("Account is required for this transaction type");
     }
@@ -1155,7 +1322,9 @@ export const createDriverPayment = async (paymentData) => {
     const paymentDate =
       paymentData.paymentDate || new Date().toISOString().split("T")[0];
     const { weekStart, weekEnd } =
-      paymentData.weekStart && paymentData.weekEnd
+      (paymentType === "penalty_other" || paymentType === "accident_due") && paymentData.weekStart && paymentData.weekEnd
+        ? { weekStart: paymentData.weekStart, weekEnd: paymentData.weekEnd }
+        : paymentData.weekStart && paymentData.weekEnd
         ? { weekStart: paymentData.weekStart, weekEnd: paymentData.weekEnd }
         : getWeekFromDate(paymentDate);
 
@@ -1169,7 +1338,7 @@ export const createDriverPayment = async (paymentData) => {
       reference_number: paymentData.referenceNumber || null,
       notes: paymentData.notes || null,
       screenshot_url: screenshotUrl,
-      account: (["paid", "refund", "deposit_due", "deposit_refund", "deposit_paid", "penalty_due", "penalty_refund", "penalty_paid"].includes(paymentData.paymentType))
+      account: (["paid", "refund", "deposit_due", "deposit_refund", "deposit_paid", "penalty_due", "penalty_refund", "penalty_paid", "accident_paid"].includes(paymentData.paymentType))
         ? (paymentData.account || "letzryd") : null,
       ...(weekStart && weekEnd && { week_start: weekStart, week_end: weekEnd }),
     };
@@ -1211,10 +1380,35 @@ export const createDriverPayment = async (paymentData) => {
       const paymentAmount = Number(paymentData.paymentAmount || 0);
       const paymentType = paymentData.paymentType || "penalty_paid";
 
+      // penalty_other: pending charge for a specific week; do not update balance (applied when bill is generated)
+      if (paymentType === "penalty_other") {
+        return data;
+      }
+
+      // accident_due: week-based accident penalty; do not update outstanding; add to driver penalty_amount
+      if (paymentType === "accident_due") {
+        const { data: driverPenaltyRow } = await supabase
+          .from(DRIVER_TABLE)
+          .select("penalty_amount")
+          .eq("id", paymentData.driverId)
+          .single();
+        const currentPenalty = Number(driverPenaltyRow?.penalty_amount || 0);
+        const newPenalty = currentPenalty + paymentAmount;
+        const { error: penaltyError } = await supabase
+          .from(DRIVER_TABLE)
+          .update({ penalty_amount: newPenalty })
+          .eq("id", paymentData.driverId);
+        if (penaltyError) {
+          console.error("Error updating driver penalty_amount:", penaltyError);
+          throw new Error(`Payment saved but failed to update penalty amount: ${penaltyError.message}`);
+        }
+        return data;
+      }
+
       const depositAdds = ["deposit", "deposit_refund", "deposit_paid"];
       const depositReduces = ["deposit_due"];
       const penaltyAdds = ["bill", "due", "penalty_due"];
-      const penaltyReduces = ["paid", "refund", "penalty_refund", "penalty_paid"];
+      const penaltyReduces = ["paid", "refund", "penalty_refund", "penalty_paid", "accident_paid"];
 
       if (depositAdds.includes(paymentType)) {
         const currentDeposit = Number(driverRow.deposit_amount || 0);
@@ -1320,7 +1514,7 @@ export const updateDriverPayment = async (paymentId, driverId, paymentData) => {
       reference_number: paymentData.referenceNumber ?? null,
       notes: paymentData.notes ?? null,
     };
-    const accountTypes = ["paid", "refund", "deposit_due", "deposit_refund", "deposit_paid", "penalty_due", "penalty_refund", "penalty_paid"];
+    const accountTypes = ["paid", "refund", "deposit_due", "deposit_refund", "deposit_paid", "penalty_due", "penalty_refund", "penalty_paid", "accident_paid"];
     updatePayload.account = accountTypes.includes(paymentData.paymentType)
       ? (paymentData.account ?? "letzryd")
       : null;
@@ -1347,20 +1541,22 @@ export const updateDriverPayment = async (paymentId, driverId, paymentData) => {
     const depositAdds = ["deposit", "deposit_refund", "deposit_paid"];
     const depositReduces = ["deposit_due"];
     const penaltyAdds = ["bill", "due", "penalty_due"];
-    const penaltyReduces = ["paid", "refund", "penalty_refund", "penalty_paid"];
+    const penaltyReduces = ["paid", "refund", "penalty_refund", "penalty_paid", "accident_paid"];
 
     const { data: driverRow } = await supabase
       .from(DRIVER_TABLE)
-      .select("outstanding_balance, deposit_amount")
+      .select("outstanding_balance, deposit_amount, penalty_amount")
       .eq("id", driverId)
       .single();
 
     if (driverRow) {
       const currentOutstanding = Number(driverRow.outstanding_balance || 0);
       const currentDeposit = Number(driverRow.deposit_amount || 0);
+      let currentPenalty = Number(driverRow.penalty_amount || 0);
 
       let newOutstanding = currentOutstanding;
       let newDeposit = currentDeposit;
+      let newPenalty = currentPenalty;
 
       // Reverse old payment effect
       if (depositAdds.includes(oldType)) {
@@ -1371,6 +1567,8 @@ export const updateDriverPayment = async (paymentId, driverId, paymentData) => {
         newOutstanding = Math.max(0, newOutstanding - oldAmount);
       } else if (penaltyReduces.includes(oldType)) {
         newOutstanding = newOutstanding + oldAmount;
+      } else if (oldType === "accident_due") {
+        newPenalty = Math.max(0, newPenalty - oldAmount);
       }
 
       // Apply new payment effect
@@ -1382,14 +1580,18 @@ export const updateDriverPayment = async (paymentId, driverId, paymentData) => {
         newOutstanding = newOutstanding + newAmount;
       } else if (penaltyReduces.includes(newType)) {
         newOutstanding = newOutstanding - newAmount;
+      } else if (newType === "accident_due") {
+        newPenalty = newPenalty + newAmount;
+      }
+
+      const updatePayload = { outstanding_balance: newOutstanding, deposit_amount: newDeposit };
+      if (oldType === "accident_due" || newType === "accident_due") {
+        updatePayload.penalty_amount = newPenalty;
       }
 
       const { error: balanceError } = await supabase
         .from(DRIVER_TABLE)
-        .update({ 
-          outstanding_balance: newOutstanding,
-          deposit_amount: newDeposit
-        })
+        .update(updatePayload)
         .eq("id", driverId);
 
       if (balanceError) {
@@ -1432,9 +1634,12 @@ export const deleteDriverPayment = async (paymentId, driverId) => {
     const paymentAmount = Number(payment.payment_amount || 0);
     const paymentType = payment.payment_type || "paid";
 
+    const penaltyAdds = ["bill", "due", "penalty_due"];
+    const penaltyReduces = ["paid", "refund", "penalty_refund", "penalty_paid", "accident_paid"];
+
     const { data: driverRow, error: driverError } = await supabase
       .from(DRIVER_TABLE)
-      .select("outstanding_balance, deposit_amount")
+      .select("outstanding_balance, deposit_amount, penalty_amount")
       .eq("id", targetDriverId)
       .single();
 
@@ -1444,11 +1649,10 @@ export const deleteDriverPayment = async (paymentId, driverId) => {
 
     const currentOutstanding = Number(driverRow.outstanding_balance || 0);
     const currentDeposit = Number(driverRow.deposit_amount || 0);
+    const currentPenalty = Number(driverRow.penalty_amount || 0);
 
     const depositAdds = ["deposit", "deposit_refund", "deposit_paid"];
     const depositReduces = ["deposit_due"];
-    const penaltyAdds = ["bill", "due", "penalty_due"];
-    const penaltyReduces = ["paid", "refund", "penalty_refund", "penalty_paid"];
 
     const updateData = {};
     if (depositAdds.includes(paymentType)) {
@@ -1459,6 +1663,8 @@ export const deleteDriverPayment = async (paymentId, driverId) => {
       updateData.outstanding_balance = Math.max(0, currentOutstanding - paymentAmount);
     } else if (penaltyReduces.includes(paymentType)) {
       updateData.outstanding_balance = currentOutstanding + paymentAmount;
+    } else if (paymentType === "accident_due") {
+      updateData.penalty_amount = Math.max(0, currentPenalty - paymentAmount);
     }
 
     const { error: balanceError } = await supabase
@@ -1694,13 +1900,53 @@ export const createMultiVehicleBill = async (hissabData) => {
   try {
     const { owner, week, vehicles, otherCharges, totals } = hissabData;
 
+    // Fetch owner's pending penalty to apply to this bill
+    const { data: driverRowForPenalty } = await supabase
+      .from(DRIVER_TABLE)
+      .select("penalty_amount")
+      .eq("id", owner.id)
+      .single();
+    const driverPenalty = Number(driverRowForPenalty?.penalty_amount || 0);
+    const penaltyToApply = Math.max(0, driverPenalty);
+
+    // Fetch penalty_other for this owner and bill week
+    let penaltyOtherSum = 0;
+    let penaltyOtherRows = [];
+    const weekStart = week?.weekStart || null;
+    const weekEnd = week?.weekEnd || null;
+    if (weekStart && weekEnd) {
+      const { data: otherRows } = await supabase
+        .from("tvp_driver_payments")
+        .select("id, payment_amount")
+        .eq("driver_id", owner.id)
+        .eq("payment_type", "penalty_other")
+        .is("applied_bill_id", null)
+        .eq("week_start", weekStart)
+        .eq("week_end", weekEnd);
+      penaltyOtherRows = otherRows || [];
+      penaltyOtherSum = penaltyOtherRows.reduce((sum, r) => sum + Number(r.payment_amount || 0), 0);
+    }
+
+    const finalAmountWithPenalty = Number(totals.finalAmount || 0) + penaltyToApply + penaltyOtherSum;
+
+    // Build hissab data with final amount including penalty for invoice
+    const hissabDataForInvoice = {
+      ...hissabData,
+      totals: {
+        ...totals,
+        finalAmount: finalAmountWithPenalty,
+        penaltyAmount: penaltyToApply,
+        penaltyOtherAmount: penaltyOtherSum,
+      },
+    };
+
     // Create a main bill record with combined totals
     const billNumber = `HISSAB-${Date.now()}-${owner.id
       .slice(-6)
       .toUpperCase()}`;
 
-    // Generate invoice HTML for multi-vehicle bill
-    const invoiceHtml = generateMultiVehicleInvoiceHTML(hissabData);
+    // Generate invoice HTML for multi-vehicle bill (includes penalty if any)
+    const invoiceHtml = generateMultiVehicleInvoiceHTML(hissabDataForInvoice);
 
     // Create main bill record
     const mainBillData = {
@@ -1758,7 +2004,9 @@ export const createMultiVehicleBill = async (hissabData) => {
         0
       ),
       dead_km: vehicles.reduce((sum, v) => sum + (v.billData.deadKm || 0), 0),
-      current_os: totals.finalAmount,
+      penalty_amount: penaltyToApply,
+      penalty_other_amount: penaltyOtherSum,
+      current_os: finalAmountWithPenalty,
       week_start: week?.weekStart || null,
       week_end: week?.weekEnd || null,
       invoice_html: invoiceHtml,
@@ -1773,8 +2021,37 @@ export const createMultiVehicleBill = async (hissabData) => {
 
     if (error) throw error;
 
+    // Reduce driver's pending penalty by the amount applied to this bill
+    if (penaltyToApply > 0 && owner?.id) {
+      const newDriverPenalty = Math.max(0, driverPenalty - penaltyToApply);
+      await supabase
+        .from(DRIVER_TABLE)
+        .update({ penalty_amount: newDriverPenalty })
+        .eq("id", owner.id);
+    }
+
+    // Mark penalty_other as applied and add penalty_paid
+    if (penaltyOtherRows.length > 0 && bill?.id) {
+      await supabase
+        .from("tvp_driver_payments")
+        .update({ applied_bill_id: bill.id })
+        .in("id", penaltyOtherRows.map((r) => r.id));
+      if (penaltyOtherSum > 0 && owner?.id) {
+        await createDriverPayment({
+          driverId: owner.id,
+          paymentType: "penalty_paid",
+          account: "letzryd",
+          paymentAmount: penaltyOtherSum,
+          paymentDate: weekEnd || new Date().toISOString().split("T")[0],
+          weekStart: weekStart || undefined,
+          weekEnd: weekEnd || undefined,
+          notes: "Auto: Other (week-based) applied to bill",
+        });
+      }
+    }
+
     // Update outstanding balance
-    const billAmount = Number(totals.finalAmount || 0);
+    const billAmount = finalAmountWithPenalty;
     if (billAmount !== 0 && owner?.id) {
       const { data: driverRow } = await supabase
         .from(DRIVER_TABLE)
@@ -1790,8 +2067,6 @@ export const createMultiVehicleBill = async (hissabData) => {
     }
 
     // Insert bill ledger entry for week-based balance tracking
-    const weekStart = week?.weekStart || bill?.week_start;
-    const weekEnd = week?.weekEnd || bill?.week_end;
     if (billAmount !== 0 && weekStart && weekEnd && bill?.id) {
       await supabase.from("tvp_driver_payments").insert({
         driver_id: owner.id,
@@ -1915,6 +2190,41 @@ export const bulkCreateDraftBills = async (billsData) => {
 // Update a bill
 export const updateBill = async (billId, billData) => {
   try {
+    // Fetch existing bill for old amount, driver, and status (for generated-bill sync)
+    const { data: existingBill, error: fetchError } = await supabase
+      .from("tvp_driver_bills")
+      .select("current_os, driver_id, status, bill_number, week_start, week_end, vehicles_breakdown, penalty_amount, penalty_other_amount")
+      .eq("id", billId)
+      .single();
+
+    if (fetchError || !existingBill) {
+      throw new Error(fetchError?.message || "Bill not found");
+    }
+
+    const oldCurrentOS = Number(existingBill.current_os || 0);
+    const newCurrentOS = Number(billData.currentOS || 0);
+    const driverId = existingBill.driver_id;
+    const isGenerated = existingBill.status === "generated";
+
+    // Regenerate invoice HTML with updated amounts
+    const vehiclesForInvoice =
+      existingBill.vehicles_breakdown && Array.isArray(existingBill.vehicles_breakdown)
+        ? existingBill.vehicles_breakdown.map((v) => ({
+            vehicleNumber: v.vehicleNumber || v.vehicle_number,
+            rentalDays: Number(v.rentalDays || v.rental_days) || 0,
+            trips: Number(v.trips) || 0,
+            dailyRent: Number(v.dailyRent || v.daily_rent) || 0,
+          }))
+        : null;
+    const invoiceHTML = generateInvoiceHTML({
+      ...billData,
+      currentOS: newCurrentOS,
+      billNumber: existingBill.bill_number,
+      vehicles: vehiclesForInvoice,
+      penaltyAmount: billData.penaltyAmount ?? existingBill.penalty_amount ?? 0,
+      penaltyOtherAmount: billData.penaltyOtherAmount ?? existingBill.penalty_other_amount ?? 0,
+    });
+
     const updateData = {
       driver_id: billData.driverId,
       tvp_id: billData.tvpId,
@@ -1936,9 +2246,13 @@ export const updateBill = async (billId, billData) => {
       rto_fine: billData.rtoFine || 0,
       accident: billData.accident || 0,
       dead_km: billData.deadKm || 0,
-      current_os: billData.currentOS || 0,
+      room_rent: billData.roomRent ?? undefined,
+      current_os: newCurrentOS,
+      invoice_html: invoiceHTML,
       updated_at: new Date().toISOString(),
     };
+    // Remove undefined so we don't overwrite with null
+    Object.keys(updateData).forEach((k) => updateData[k] === undefined && delete updateData[k]);
 
     const { data, error } = await supabase
       .from("tvp_driver_bills")
@@ -1948,6 +2262,50 @@ export const updateBill = async (billId, billData) => {
       .single();
 
     if (error) throw error;
+
+    // For generated bills: sync driver outstanding and bill ledger entry
+    if (isGenerated && driverId) {
+      const delta = newCurrentOS - oldCurrentOS;
+      if (delta !== 0) {
+        const { data: driverRow } = await supabase
+          .from(DRIVER_TABLE)
+          .select("outstanding_balance")
+          .eq("id", driverId)
+          .single();
+        const currentOutstanding = Number(driverRow?.outstanding_balance || 0);
+        const newOutstanding = currentOutstanding + delta;
+        await supabase
+          .from(DRIVER_TABLE)
+          .update({ outstanding_balance: newOutstanding })
+          .eq("id", driverId);
+      }
+
+      // Update the "bill" ledger entry so week-based stats and balance stay correct
+      const { data: ledgerRows } = await supabase
+        .from("tvp_driver_payments")
+        .select("id")
+        .eq("bill_id", billId)
+        .eq("payment_type", "bill");
+      if (ledgerRows && ledgerRows.length > 0) {
+        await supabase
+          .from("tvp_driver_payments")
+          .update({ payment_amount: newCurrentOS })
+          .eq("bill_id", billId)
+          .eq("payment_type", "bill");
+      } else if (newCurrentOS !== 0 && existingBill.week_start && existingBill.week_end) {
+        // Legacy bill with no ledger row: insert one for consistency
+        await supabase.from("tvp_driver_payments").insert({
+          driver_id: driverId,
+          bill_id: billId,
+          payment_amount: newCurrentOS,
+          payment_date: existingBill.week_end,
+          payment_type: "bill",
+          week_start: existingBill.week_start,
+          week_end: existingBill.week_end,
+        });
+      }
+    }
+
     return data;
   } catch (error) {
     console.error("Error updating bill:", error);
@@ -1986,48 +2344,47 @@ const formatDateForFilename = (dateString) => {
 export const exportBillToPDF = (bill) => {
   try {
     console.log("Exporting bill to PDF:", bill);
-    
-    // Generate invoice HTML if not already generated
-    let invoiceHTML = bill.invoice_html || bill.invoiceHtml;
-    if (!invoiceHTML) {
-      // Get vehicles breakdown from bill if available
-      const vehiclesBreakdown = bill.vehicles_breakdown || null;
-      const vehiclesForInvoice = vehiclesBreakdown && Array.isArray(vehiclesBreakdown) && vehiclesBreakdown.length > 0
-        ? vehiclesBreakdown.map(v => ({
-            vehicleNumber: v.vehicleNumber || v.vehicle_number,
-            rentalDays: Number(v.rentalDays || v.rental_days) || 0,
-            trips: Number(v.trips) || 0,
-            dailyRent: Number(v.dailyRent || v.daily_rent) || 0,
-          }))
-        : (bill.vehicles && Array.isArray(bill.vehicles)) ? bill.vehicles : null;
 
-      invoiceHTML = generateInvoiceHTML({
-        driverId: bill.driver_id || bill.driverId,
-        tvpId: bill.tvp_id || bill.tvpId,
-        driverName: bill.driver_name || bill.driverName,
-        vehicleNumber: bill.vehicle_number || bill.vehicleNumber,
-        rentalDays: bill.rental_days || bill.rentalDays,
-        trips: bill.trips,
-        dailyRent: bill.daily_rent || bill.dailyRent,
-        weeklyInsurance: bill.weekly_insurance || bill.weeklyInsurance,
-        doubleDriverCharge: bill.double_driver_charge || bill.doubleDriverCharge,
-        netWeeklyRent: bill.net_weekly_rent || bill.netWeeklyRent,
-        totalEarnings: bill.total_earnings || bill.totalEarnings,
-        totalCashCollect: bill.total_cash_collect || bill.totalCashCollect,
-        difference: bill.difference,
-        platformFee: bill.platform_fee || bill.platformFee,
-        toll: bill.toll,
-        tds: bill.tds,
-        vehicleAdjustment: bill.vehicle_adjustment || bill.vehicleAdjustment,
-        rtoFine: bill.rto_fine || bill.rtoFine,
-        accident: bill.accident,
-        deadKm: bill.dead_km || bill.deadKm,
-        roomRent: bill.room_rent || bill.roomRent || 0,
-        currentOS: bill.current_os || bill.currentOS,
-        billNumber: bill.bill_number || bill.billNumber,
-        vehicles: vehiclesForInvoice,
-      });
-    }
+    // Always regenerate invoice from bill data so penalty/penalty_other and totals are correct
+    // (stored invoice_html may be stale when called right after createDriverBill)
+    const vehiclesBreakdown = bill.vehicles_breakdown || null;
+    const vehiclesForInvoice = vehiclesBreakdown && Array.isArray(vehiclesBreakdown) && vehiclesBreakdown.length > 0
+      ? vehiclesBreakdown.map(v => ({
+          vehicleNumber: v.vehicleNumber || v.vehicle_number,
+          rentalDays: Number(v.rentalDays || v.rental_days) || 0,
+          trips: Number(v.trips) || 0,
+          dailyRent: Number(v.dailyRent || v.daily_rent) || 0,
+        }))
+      : (bill.vehicles && Array.isArray(bill.vehicles)) ? bill.vehicles : null;
+
+    const invoiceHTML = generateInvoiceHTML({
+      driverId: bill.driver_id || bill.driverId,
+      tvpId: bill.tvp_id || bill.tvpId,
+      driverName: bill.driver_name || bill.driverName,
+      vehicleNumber: bill.vehicle_number || bill.vehicleNumber,
+      rentalDays: bill.rental_days || bill.rentalDays,
+      trips: bill.trips,
+      dailyRent: bill.daily_rent || bill.dailyRent,
+      weeklyInsurance: bill.weekly_insurance || bill.weeklyInsurance,
+      doubleDriverCharge: bill.double_driver_charge || bill.doubleDriverCharge,
+      netWeeklyRent: bill.net_weekly_rent || bill.netWeeklyRent,
+      totalEarnings: bill.total_earnings || bill.totalEarnings,
+      totalCashCollect: bill.total_cash_collect || bill.totalCashCollect,
+      difference: bill.difference,
+      platformFee: bill.platform_fee || bill.platformFee,
+      toll: bill.toll,
+      tds: bill.tds,
+      vehicleAdjustment: bill.vehicle_adjustment || bill.vehicleAdjustment,
+      rtoFine: bill.rto_fine || bill.rtoFine,
+      accident: bill.accident,
+      deadKm: bill.dead_km || bill.deadKm,
+      roomRent: bill.room_rent || bill.roomRent || 0,
+      currentOS: bill.current_os || bill.currentOS,
+      penaltyAmount: bill.penalty_amount ?? bill.penaltyAmount ?? 0,
+      penaltyOtherAmount: bill.penalty_other_amount ?? bill.penaltyOtherAmount ?? 0,
+      billNumber: bill.bill_number || bill.billNumber,
+      vehicles: vehiclesForInvoice,
+    });
 
     // Generate filename: "Owner Name (Week Start to Week End).pdf"
     // Check both snake_case and camelCase property names
@@ -2113,7 +2470,37 @@ export const finalizeBill = async (billId) => {
   try {
     // Get the bill first
     const bill = await getBillById(billId);
-    
+
+    // Fetch driver's pending penalty to apply to this bill
+    const { data: driverRowForPenalty } = await supabase
+      .from(DRIVER_TABLE)
+      .select("penalty_amount")
+      .eq("id", bill.driver_id)
+      .single();
+    const driverPenalty = Number(driverRowForPenalty?.penalty_amount || 0);
+    const baseCurrentOS = Number(bill.current_os || 0);
+    const penaltyToApply = Math.max(0, driverPenalty);
+
+    // Fetch penalty_other for this driver and bill week
+    let penaltyOtherSum = 0;
+    let penaltyOtherRows = [];
+    const billWeekStart = bill.week_start || null;
+    const billWeekEnd = bill.week_end || null;
+    if (billWeekStart && billWeekEnd) {
+      const { data: otherRows } = await supabase
+        .from("tvp_driver_payments")
+        .select("id, payment_amount")
+        .eq("driver_id", bill.driver_id)
+        .eq("payment_type", "penalty_other")
+        .is("applied_bill_id", null)
+        .eq("week_start", billWeekStart)
+        .eq("week_end", billWeekEnd);
+      penaltyOtherRows = otherRows || [];
+      penaltyOtherSum = penaltyOtherRows.reduce((sum, r) => sum + Number(r.payment_amount || 0), 0);
+    }
+
+    const finalCurrentOS = baseCurrentOS + penaltyToApply + penaltyOtherSum;
+
     // Generate new bill number (remove DRAFT- prefix if present, add INV-)
     let newBillNumber = bill.bill_number;
     if (newBillNumber.startsWith("DRAFT-")) {
@@ -2123,7 +2510,7 @@ export const finalizeBill = async (billId) => {
         bill.driver_id?.slice(-6).toUpperCase() || "BILL"
       }`;
     }
-    
+
     // Get vehicles breakdown from bill if available
     const vehiclesBreakdown = bill.vehicles_breakdown || null;
     const vehiclesForInvoice = vehiclesBreakdown && Array.isArray(vehiclesBreakdown) && vehiclesBreakdown.length > 0
@@ -2135,7 +2522,7 @@ export const finalizeBill = async (billId) => {
         }))
       : null;
 
-    // Generate invoice HTML
+    // Generate invoice HTML (with penalty and final amount)
     const invoiceHTML = generateInvoiceHTML({
       driverId: bill.driver_id,
       tvpId: bill.tvp_id,
@@ -2158,18 +2545,23 @@ export const finalizeBill = async (billId) => {
       accident: bill.accident,
       deadKm: bill.dead_km,
       roomRent: bill.room_rent || 0,
-      currentOS: bill.current_os,
+      penaltyAmount: penaltyToApply,
+      penaltyOtherAmount: penaltyOtherSum,
+      currentOS: finalCurrentOS,
       billNumber: newBillNumber,
       vehicles: vehiclesForInvoice,
     });
 
-    // Update the bill with generated status and invoice HTML
+    // Update the bill with generated status, invoice HTML, final amount and penalty
     const { data, error } = await supabase
       .from("tvp_driver_bills")
       .update({
         status: "generated",
         invoice_html: invoiceHTML,
         bill_number: newBillNumber,
+        current_os: finalCurrentOS,
+        penalty_amount: penaltyToApply,
+        penalty_other_amount: penaltyOtherSum,
       })
       .eq("id", billId)
       .select()
@@ -2177,8 +2569,8 @@ export const finalizeBill = async (billId) => {
 
     if (error) throw error;
 
-    // Update outstanding balance when finalizing draft (draft bills don't update OS on creation)
-    const billAmount = Number(bill.current_os || 0);
+    // Update outstanding balance when finalizing draft (use final amount including penalty)
+    const billAmount = finalCurrentOS;
     if (billAmount !== 0 && bill.driver_id) {
       const { data: driverRow } = await supabase
         .from(DRIVER_TABLE)
@@ -2193,6 +2585,35 @@ export const finalizeBill = async (billId) => {
         .eq("id", bill.driver_id);
       if (balanceError) {
         console.error("Error updating outstanding balance on finalize:", balanceError);
+      }
+    }
+
+    // Reduce driver's pending penalty by the amount applied to this bill
+    if (penaltyToApply > 0 && bill.driver_id) {
+      const newDriverPenalty = Math.max(0, driverPenalty - penaltyToApply);
+      await supabase
+        .from(DRIVER_TABLE)
+        .update({ penalty_amount: newDriverPenalty })
+        .eq("id", bill.driver_id);
+    }
+
+    // Mark penalty_other as applied and add penalty_paid
+    if (penaltyOtherRows.length > 0 && billId) {
+      await supabase
+        .from("tvp_driver_payments")
+        .update({ applied_bill_id: billId })
+        .in("id", penaltyOtherRows.map((r) => r.id));
+      if (penaltyOtherSum > 0 && bill.driver_id) {
+        await createDriverPayment({
+          driverId: bill.driver_id,
+          paymentType: "penalty_paid",
+          account: "letzryd",
+          paymentAmount: penaltyOtherSum,
+          paymentDate: billWeekEnd || new Date().toISOString().split("T")[0],
+          weekStart: billWeekStart || undefined,
+          weekEnd: billWeekEnd || undefined,
+          notes: "Auto: Other (week-based) applied to bill",
+        });
       }
     }
 
@@ -2464,6 +2885,9 @@ export const generateInvoiceHTML = (billData) => {
   const rtoFine = Number(billData.rtoFine || 0);
   const accident = Number(billData.accident || 0);
   const deadKm = Number(billData.deadKm || 0);
+  const penaltyAmount = Number(billData.penaltyAmount ?? billData.penalty_amount ?? 0);
+  const penaltyOtherAmount = Number(billData.penaltyOtherAmount ?? billData.penalty_other_amount ?? 0);
+  const accidentPenaltyAmount = Number(billData.accidentPenaltyAmount ?? billData.accident_penalty_amount ?? 0);
   const roomRent = Number(billData.roomRent || 0);
   const doubleDriverCharge = Number(billData.doubleDriverCharge || 0);
   const dailyRent = Number(billData.dailyRent || 0);
@@ -2757,6 +3181,24 @@ export const generateInvoiceHTML = (billData) => {
       <div class="total-row">
         <span>${difference >= 0 ? '+' : ''} Difference:</span>
         <span style="color: ${difference >= 0 ? '#059669' : '#dc2626'};">${difference >= 0 ? '+' : ''}${formatAmount(Math.abs(difference))} INR</span>
+      </div>
+      ` : ''}
+      ${hasValue(penaltyAmount) ? `
+      <div class="total-row">
+        <span>+ Penalty:</span>
+        <span style="color: #059669;">+${formatAmount(penaltyAmount)} INR</span>
+      </div>
+      ` : ''}
+      ${hasValue(penaltyOtherAmount) ? `
+      <div class="total-row">
+        <span>+ Other:</span>
+        <span style="color: #059669;">+${formatAmount(penaltyOtherAmount)} INR</span>
+      </div>
+      ` : ''}
+      ${hasValue(accidentPenaltyAmount) ? `
+      <div class="total-row">
+        <span>+ Accident penalty:</span>
+        <span style="color: #059669;">+${formatAmount(accidentPenaltyAmount)} INR</span>
       </div>
       ` : ''}
       <div class="total-row final">
@@ -3188,6 +3630,26 @@ export const generateMultiVehicleInvoiceHTML = (hissabData) => {
     
     <!-- Final Amount -->
     <div class="total-section" style="background: #dbeafe; border: 3px solid #2563eb;">
+      ${
+        totals.penaltyAmount > 0
+          ? `
+      <div class="total-row">
+        <span style="font-weight: 600;">+ Penalty:</span>
+        <span style="font-weight: 700; color: #059669;">+₹${Number(totals.penaltyAmount || 0).toFixed(2)}</span>
+      </div>
+      `
+          : ""
+      }
+      ${
+        totals.penaltyOtherAmount > 0
+          ? `
+      <div class="total-row">
+        <span style="font-weight: 600;">+ Other:</span>
+        <span style="font-weight: 700; color: #059669;">+₹${Number(totals.penaltyOtherAmount || 0).toFixed(2)}</span>
+      </div>
+      `
+          : ""
+      }
       <div class="total-row final" style="color: #1e40af;">
         <span style="font-size: 22px; font-weight: 700;">FINAL AMOUNT:</span>
         <span style="font-size: 24px; font-weight: 700; color: ${

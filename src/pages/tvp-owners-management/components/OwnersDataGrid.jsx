@@ -14,6 +14,7 @@ const OwnersDataGrid = ({
   onOwnerEdit = () => {},
   onOwnerDelete = () => {},
   onGenerateBill = () => {},
+  onAddPenalty = () => {},
   onStatusToggle = () => {},
   canManageOwners = false,
   currentPage = 1,
@@ -467,6 +468,20 @@ const OwnersDataGrid = ({
                             if (canManageOwners && onGenerateBill) {
                               onGenerateBill(owner);
                             }
+                          }}
+                        />
+                      )}
+                      {canManageOwners && onAddPenalty && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          iconName="AlertTriangle"
+                          iconSize={14}
+                          className="h-8 w-8"
+                          title="Add penalty"
+                          onClick={(e) => {
+                            e?.stopPropagation();
+                            onAddPenalty(owner);
                           }}
                         />
                       )}

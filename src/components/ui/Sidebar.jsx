@@ -31,13 +31,13 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
       tooltip: "Vendor relationship management",
     },
 
-    {
-      label: "Owner Profile",
-      path: "/tvp-owner-profile-detail",
-      icon: "UserCheck",
-      permissions: ["tvp_management"],
-      tooltip: "Detailed owner information",
-    },
+    // {
+    //   label: "Owner Profile",
+    //   path: "/tvp-owner-profile-detail",
+    //   icon: "UserCheck",
+    //   permissions: ["tvp_management"],
+    //   tooltip: "Detailed owner information",
+    // },
     // {
     //   label: "TVP Owner Dashboard",
     //   path: "/tvp-owner-dashboard",
@@ -286,7 +286,7 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
                           />
                         </div>
                       </div>
-                    )
+                    ),
                   )}
                 </div>
               </div>
@@ -301,7 +301,7 @@ const Sidebar = ({ isCollapsed = false, onToggle }) => {
                         className={getStatusColor(integration.status)}
                       />
                     </div>
-                  )
+                  ),
                 )}
               </div>
             )}

@@ -9,6 +9,7 @@ import OwnerDetailPanel from "./components/OwnerDetailPanel";
 import OwnerFormModal from "./components/OwnerFormModal";
 import {
   getAllTVPOwners,
+  getTVPOwnerDetails,
   createTVPOwner,
   updateTVPOwner,
   deleteTVPOwner,
@@ -19,6 +20,7 @@ import {
 } from "../../lib/tvpManagementAPI";
 import { calculatePreviousWeek } from "../hissab-accounting-generator/components/WeekSelector";
 import BillFormModal from "./components/BillFormModal";
+import AddPenaltyModal from "./components/AddPenaltyModal";
 import Button from "../../components/ui/Button";
 import SettingsModal from "./components/SettingsModal";
 import { useAuth } from "../../contexts/AuthContext";
@@ -62,6 +64,8 @@ const TVPOwnersManagement = () => {
   const [billFormOpen, setBillFormOpen] = useState(false);
   const [billFormDriver, setBillFormDriver] = useState(null);
   const [billFormSubmitting, setBillFormSubmitting] = useState(false);
+  const [penaltyModalOpen, setPenaltyModalOpen] = useState(false);
+  const [penaltyModalDriver, setPenaltyModalDriver] = useState(null);
   const [billGeneratedSuccess, setBillGeneratedSuccess] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -396,18 +400,42 @@ const TVPOwnersManagement = () => {
     }
   };
 
-  const handleGenerateBill = (owner) => {
+  const handleGenerateBill = async (owner) => {
     if (!canManageOwners || !owner?.id) {
       return;
     }
-    setBillFormDriver(owner);
-    setBillFormOpen(true);
+    try {
+      // Fetch full driver from tvp_drivers so vehicle_numbers is always present
+      const driverWithVehicles = await getTVPOwnerDetails(owner.id);
+      setBillFormDriver(driverWithVehicles);
+      setBillFormOpen(true);
+    } catch (err) {
+      console.error("Failed to load driver for bill:", err);
+      setError(err?.message || "Could not load driver details");
+    }
   };
 
   const handleBillFormClose = () => {
     if (billFormSubmitting) return;
     setBillFormOpen(false);
     setBillFormDriver(null);
+  };
+
+  const handleAddPenalty = (owner) => {
+    setPenaltyModalDriver(owner);
+    setPenaltyModalOpen(true);
+  };
+
+  const handlePenaltyModalClose = () => {
+    setPenaltyModalOpen(false);
+    setPenaltyModalDriver(null);
+  };
+
+  const handlePenaltySubmitted = () => {
+    loadTVPOwners();
+    if (selectedOwner?.id === penaltyModalDriver?.id) {
+      getTVPOwnerDetails(selectedOwner.id).then(setSelectedOwner).catch(() => {});
+    }
   };
 
   const handleBillFormSubmit = async (billData) => {
@@ -758,6 +786,7 @@ const TVPOwnersManagement = () => {
                       onOwnerEdit={handleEditOwner}
                       onOwnerDelete={handleOwnerDelete}
                       onGenerateBill={handleGenerateBill}
+                      onAddPenalty={handleAddPenalty}
                       onStatusToggle={handleStatusToggle}
                       canManageOwners={!!canManageOwners}
                       currentPage={currentPage}
@@ -785,6 +814,10 @@ const TVPOwnersManagement = () => {
                         owner={selectedOwner}
                         onClose={handleCloseDetailPanel}
                         onUpdate={handleOwnerUpdate}
+                        onOpenAddPenalty={() => {
+                          setPenaltyModalDriver(selectedOwner);
+                          setPenaltyModalOpen(true);
+                        }}
                       />
                     </div>
                   </div>
@@ -808,6 +841,12 @@ const TVPOwnersManagement = () => {
         onClose={handleBillFormClose}
         onSubmit={handleBillFormSubmit}
         submitting={billFormSubmitting}
+      />
+      <AddPenaltyModal
+        isOpen={penaltyModalOpen}
+        driver={penaltyModalDriver}
+        onClose={handlePenaltyModalClose}
+        onSubmit={handlePenaltySubmitted}
       />
       {/* Bill generated success modal - Share via WhatsApp */}
       {billGeneratedSuccess && (

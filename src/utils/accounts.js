@@ -14,11 +14,14 @@ export const DEPOSIT_LEDGER_OPTIONS = [
   { value: "deposit_paid", label: "Paid", sublabel: "Adds to deposit", color: "success" },
 ];
 
-// Penalty and Refund Transaction ledger: Due (increases), Paid/Refund (reduces)
+// Penalty and Refund Transaction ledger: Due (increases), Paid/Refund (reduces), Other (add to bill for selected week), Accident due/paid
 export const PENALTY_LEDGER_OPTIONS = [
   { value: "penalty_due", label: "Due", sublabel: "Increases outstanding", color: "warning" },
   { value: "penalty_refund", label: "Refund", sublabel: "Reduces outstanding", color: "info" },
   { value: "penalty_paid", label: "Paid", sublabel: "Reduces outstanding", color: "success" },
+  { value: "penalty_other", label: "Other", sublabel: "Add to bill for selected week", color: "muted" },
+  { value: "accident_due", label: "Accident due", sublabel: "Add to bill for selected week", color: "warning" },
+  { value: "accident_paid", label: "Accident paid", sublabel: "Applied via bill", color: "success" },
 ];
 
 // Combined options for forms that use a single dropdown
@@ -35,6 +38,7 @@ export const PAYMENT_TYPES_REQUIRING_ACCOUNT = [
   "penalty_due",
   "penalty_refund",
   "penalty_paid",
+  "accident_paid",
   "paid",
   "refund",
 ];
@@ -69,5 +73,6 @@ export const getLedgerForType = (paymentType) => {
   if (["deposit_due", "deposit_refund", "deposit_paid", "deposit"].includes(paymentType)) {
     return "deposit";
   }
+  // penalty, accident_due, accident_paid, penalty_due, penalty_paid, etc.
   return "penalty";
 };

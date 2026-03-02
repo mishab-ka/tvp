@@ -15,6 +15,7 @@ import {
   deleteDriverBill,
   getTotalOutstandingBalance,
   getTVPOwnerDetails,
+  updateBill,
 } from "../../../lib/tvpManagementAPI";
 import { supabase } from "../../../lib/supabase";
 import {
@@ -32,8 +33,9 @@ import {
   calculateWeekFromDate,
 } from "../../../pages/hissab-accounting-generator/components/WeekSelector";
 import TransactionModal from "./TransactionModal";
+import BillEditModal from "../../bulk-bill-generator/components/BillEditModal";
 
-const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
+const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
   const [activeTab, setActiveTab] = useState("profile");
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState(owner || {});
@@ -73,6 +75,7 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
       alternativePhone2: owner?.alternativePhone2 ?? "",
       alternativePhone3: owner?.alternativePhone3 ?? "",
       includingRoom: owner?.includingRoom ?? false,
+      penaltyAmount: owner?.penaltyAmount ?? owner?.penalty_amount ?? 0,
     });
   }, [owner]);
 
@@ -107,6 +110,9 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
     notes: "",
     screenshot: null,
   });
+  const [editingBill, setEditingBill] = useState(null);
+  const [showBillEditModal, setShowBillEditModal] = useState(false);
+  const [billEditLoading, setBillEditLoading] = useState(false);
   const paymentWeekOptions = useMemo(() => {
     const formatWeekLabel = (weekStart) => {
       const d = new Date(weekStart);
@@ -202,6 +208,29 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
     } catch (err) {
       console.error("Error deleting bill:", err);
       alert(err.message || "Failed to delete bill");
+    }
+  };
+
+  const handleBillEdit = (bill) => {
+    setEditingBill(bill);
+    setShowBillEditModal(true);
+  };
+
+  const handleBillUpdate = async (billData) => {
+    if (!editingBill?.id || !owner?.id) return;
+    try {
+      setBillEditLoading(true);
+      await updateBill(editingBill.id, billData);
+      await loadBills();
+      const updatedOwner = await getTVPOwnerDetails(owner.id);
+      onUpdate(updatedOwner);
+      setShowBillEditModal(false);
+      setEditingBill(null);
+    } catch (err) {
+      console.error("Error updating bill:", err);
+      throw err;
+    } finally {
+      setBillEditLoading(false);
     }
   };
 
@@ -645,6 +674,7 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
             iconPosition="left"
             iconSize={14}
             fullWidth
+            onClick={() => onOpenAddPenalty?.(owner)}
           >
             Apply Penalty
           </Button>
@@ -785,6 +815,12 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
       const weekFromDate = formData.paymentDate
         ? calculateWeekFromDate(formData.paymentDate)
         : null;
+      const weekStart = (formData.paymentType === "penalty_other" || formData.paymentType === "accident_due") && formData.weekStart && formData.weekEnd
+        ? formData.weekStart
+        : weekFromDate?.weekStart;
+      const weekEnd = (formData.paymentType === "penalty_other" || formData.paymentType === "accident_due") && formData.weekStart && formData.weekEnd
+        ? formData.weekEnd
+        : weekFromDate?.weekEnd;
 
       if (isEditing) {
         await updateDriverPayment(editingPaymentId, owner.id, {
@@ -796,8 +832,8 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
             : null,
           paymentAmount: formData.paymentAmount,
           paymentDate: formData.paymentDate,
-          weekStart: weekFromDate?.weekStart,
-          weekEnd: weekFromDate?.weekEnd,
+          weekStart,
+          weekEnd,
           paymentMethod: formData.paymentMethod,
           referenceNumber: formData.referenceNumber,
           notes: formData.notes,
@@ -814,8 +850,8 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
             : null,
           paymentAmount: formData.paymentAmount,
           paymentDate: formData.paymentDate,
-          weekStart: weekFromDate?.weekStart,
-          weekEnd: weekFromDate?.weekEnd,
+          weekStart,
+          weekEnd,
           paymentMethod: formData.paymentMethod,
           referenceNumber: formData.referenceNumber,
           notes: formData.notes,
@@ -887,6 +923,9 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
     "penalty_due",
     "penalty_refund",
     "penalty_paid",
+    "penalty_other",
+    "accident_due",
+    "accident_paid",
     "paid",
     "due",
     "refund",
@@ -925,7 +964,7 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
     penaltyPayments.forEach((p) => {
       if (p.payment_type === "bill") return;
       if (!p.account || totals[p.account] === undefined) return;
-      if (["penalty_paid", "paid", "refund", "penalty_refund"].includes(p.payment_type))
+      if (["penalty_paid", "paid", "refund", "penalty_refund", "accident_paid"].includes(p.payment_type))
         totals[p.account] -= Number(p?.payment_amount) || 0;
       else totals[p.account] += Number(p?.payment_amount) || 0;
     });
@@ -935,7 +974,7 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
   const totalCollectedByAccount = useMemo(() => {
     const totals = { letzryd: 0, tawaaq_fleet: 0, cash_in_hand: 0 };
     (payments || []).forEach((p) => {
-      if (!["paid", "penalty_paid"].includes(p.payment_type)) return;
+      if (!["paid", "penalty_paid", "accident_paid"].includes(p.payment_type)) return;
       const k =
         p?.account && totals[p.account] !== undefined ? p.account : "letzryd";
       totals[k] += Number(p?.payment_amount) || 0;
@@ -946,7 +985,7 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
   const renderFinancialTab = () => (
     <div className="space-y-6">
       {/* Financial Summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white border border-border p-4 rounded-lg">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-muted-foreground">Deposit</span>
@@ -977,6 +1016,41 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
           >
             {formatCurrency(Math.abs(owner?.outstandingBalance ?? 0))}
           </div>
+        </div>
+
+        <div className="bg-white border border-border p-4 rounded-lg">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-muted-foreground">
+              Pending Penalty (INR)
+            </span>
+            <Icon name="AlertTriangle" size={16} className="text-warning" />
+          </div>
+          <p className="text-xs text-muted-foreground mb-1">
+            Added to the driver&apos;s next generated bill; reduces after the bill is created.
+          </p>
+          {isEditing ? (
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={
+                editData.penaltyAmount ??
+                owner?.penaltyAmount ??
+                owner?.penalty_amount ??
+                0
+              }
+              onChange={(e) =>
+                setEditData({
+                  ...editData,
+                  penaltyAmount: parseFloat(e.target.value) || 0,
+                })
+              }
+            />
+          ) : (
+            <div className="text-2xl font-bold text-foreground">
+              {formatCurrency(owner?.penaltyAmount ?? owner?.penalty_amount ?? 0)}
+            </div>
+          )}
         </div>
 
         <div className="bg-white border border-border p-4 rounded-lg">
@@ -1221,6 +1295,12 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
     alternativePhone3:
       editData?.alternativePhone3 ?? owner?.alternativePhone3 ?? "",
     includingRoom: editData?.includingRoom ?? owner?.includingRoom ?? false,
+    penaltyAmount:
+      Number(
+        editData?.penaltyAmount ??
+          owner?.penaltyAmount ??
+          owner?.penalty_amount,
+      ) || 0,
     uberDriverPhotos:
       editData?.uberDriverPhotos ?? owner?.uberDriverPhotos ?? [],
     vehicleNumbers: resolveVehicleNumbers(),
@@ -1740,6 +1820,16 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
                 <Button
                   variant="outline"
                   size="sm"
+                  iconName="Pencil"
+                  iconPosition="left"
+                  iconSize={14}
+                  onClick={() => handleBillEdit(bill)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   iconName="Download"
                   iconPosition="left"
                   iconSize={14}
@@ -1783,8 +1873,8 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
     setTransactionModalOpen(true);
   };
 
-  const DUE_TYPES = ["deposit_due", "penalty_due", "due"];
-  const REFUND_PAID_TYPES = ["deposit_refund", "deposit_paid", "penalty_refund", "penalty_paid", "paid", "refund"];
+  const DUE_TYPES = ["deposit_due", "penalty_due", "due", "accident_due"];
+  const REFUND_PAID_TYPES = ["deposit_refund", "deposit_paid", "penalty_refund", "penalty_paid", "accident_paid", "paid", "refund"];
 
   const formatTransactionAmount = (paymentType, amount) => {
     const num = Number(amount) || 0;
@@ -1804,11 +1894,11 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
       return "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700";
     if (["deposit_refund", "deposit_paid"].includes(t))
       return "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700";
-    if (["penalty_due", "due"].includes(t))
+    if (["penalty_due", "due", "accident_due"].includes(t))
       return "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-700";
     if (["penalty_refund", "refund"].includes(t))
       return "bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-900/30 dark:text-sky-400 dark:border-sky-700";
-    if (["penalty_paid", "paid"].includes(t))
+    if (["penalty_paid", "paid", "accident_paid"].includes(t))
       return "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700";
     return "bg-muted/50 text-muted-foreground border-border";
   };
@@ -2210,6 +2300,20 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate }) => {
       <div className="flex-1 min-h-0 overflow-y-auto p-5 bg-background">
         {renderTabContent()}
       </div>
+
+      {/* Edit Bill modal - rendered here so it opens from Bills tab */}
+      {showBillEditModal && editingBill && (
+        <BillEditModal
+          bill={editingBill}
+          vehicles={[]}
+          onClose={() => {
+            setShowBillEditModal(false);
+            setEditingBill(null);
+          }}
+          onSave={handleBillUpdate}
+          loading={billEditLoading}
+        />
+      )}
     </div>
   );
 };
