@@ -867,6 +867,27 @@ export const getAccidentPenaltyForWeek = async (driverId, weekStart, weekEnd) =>
   }
 };
 
+/** Add penalty amount to driver without creating a transaction (updates penalty_amount column only) */
+export const addDriverPenaltyAmount = async (driverId, amount) => {
+  if (!driverId || amount == null || Number(amount) <= 0) {
+    throw new Error("Valid driver ID and positive amount are required");
+  }
+  const addAmount = Number(amount);
+  const { data: row } = await supabase
+    .from(DRIVER_TABLE)
+    .select("penalty_amount")
+    .eq("id", driverId)
+    .single();
+  const current = Number(row?.penalty_amount || 0);
+  const newPenalty = current + addAmount;
+  const { error } = await supabase
+    .from(DRIVER_TABLE)
+    .update({ penalty_amount: newPenalty })
+    .eq("id", driverId);
+  if (error) throw error;
+  return newPenalty;
+};
+
 // Create a new bill/invoice for a driver
 export const createDriverBill = async (billData) => {
   try {
@@ -882,7 +903,6 @@ export const createDriverBill = async (billData) => {
       .single();
     const driverPenalty = Number(driverRowForPenalty?.penalty_amount || 0);
     const baseCurrentOS = Number(billData.currentOS || 0);
-    const penaltyToApply = Math.max(0, driverPenalty);
 
     // Fetch penalty_other (week-based "Other") for this driver and bill week; apply to bill
     let penaltyOtherSum = 0;
@@ -917,6 +937,10 @@ export const createDriverBill = async (billData) => {
       accidentDueRows = accidentRows || [];
       accidentPenaltySum = accidentDueRows.reduce((sum, r) => sum + Number(r.payment_amount || 0), 0);
     }
+
+    // Don't double-count: driver's penalty_amount includes amounts we added when creating accident_due.
+    // So "Penalty" on the bill should only be the part NOT already covered by accident_due for this week.
+    const penaltyToApply = Math.max(0, driverPenalty - accidentPenaltySum);
 
     const finalCurrentOS = baseCurrentOS + penaltyToApply + penaltyOtherSum + accidentPenaltySum;
 
@@ -1062,24 +1086,12 @@ export const createDriverBill = async (billData) => {
         .eq("id", billData.driverId);
     }
 
-    // Mark accident_due rows as applied and add accident_paid so ledger shows "paid"
+    // Mark accident_due rows as applied (do not create accident_paid transaction)
     if (accidentDueRows.length > 0 && bill?.id) {
       await supabase
         .from("tvp_driver_payments")
         .update({ applied_bill_id: bill.id })
         .in("id", accidentDueRows.map((r) => r.id));
-      if (accidentPenaltySum > 0) {
-        await createDriverPayment({
-          driverId: billData.driverId,
-          paymentType: "accident_paid",
-          account: "letzryd",
-          paymentAmount: accidentPenaltySum,
-          paymentDate: weekEnd || new Date().toISOString().split("T")[0],
-          weekStart: weekStart || undefined,
-          weekEnd: weekEnd || undefined,
-          notes: "Auto: Accident penalty applied to bill",
-        });
-      }
     }
 
     // Mark penalty_other rows as applied and add penalty_paid so ledger shows "paid"
@@ -2341,7 +2353,8 @@ const formatDateForFilename = (dateString) => {
 };
 
 // Export bill to PDF with proper filename
-export const exportBillToPDF = (bill) => {
+// If printWindow is provided (opened in same user gesture), use it to avoid pop-up blocking.
+export const exportBillToPDF = (bill, printWindow = null) => {
   try {
     console.log("Exporting bill to PDF:", bill);
 
@@ -2382,6 +2395,7 @@ export const exportBillToPDF = (bill) => {
       currentOS: bill.current_os || bill.currentOS,
       penaltyAmount: bill.penalty_amount ?? bill.penaltyAmount ?? 0,
       penaltyOtherAmount: bill.penalty_other_amount ?? bill.penaltyOtherAmount ?? 0,
+      accidentPenaltyAmount: bill.accident_penalty_amount ?? bill.accidentPenaltyAmount ?? 0,
       billNumber: bill.bill_number || bill.billNumber,
       vehicles: vehiclesForInvoice,
     });
@@ -2433,8 +2447,9 @@ export const exportBillToPDF = (bill) => {
     // Open print window with the invoice
     // Note: Browser print dialog will use default filename, but we'll set title
     // Users can choose "Save as PDF" in the print dialog and rename it
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
+    // Use provided window (opened in same user gesture) or open new one to avoid pop-up blocking
+    const printWindowToUse = printWindow && !printWindow.closed ? printWindow : window.open("", "_blank");
+    if (!printWindowToUse || printWindowToUse.closed) {
       throw new Error("Pop-up blocked. Please allow pop-ups for this site.");
     }
     
@@ -2444,15 +2459,21 @@ export const exportBillToPDF = (bill) => {
       `<title>${filename.replace('.pdf', '')}</title>`
     );
     
-    printWindow.document.write(htmlWithFilename);
-    printWindow.document.close();
-    printWindow.document.title = filename.replace('.pdf', '');
-    printWindow.focus();
+    printWindowToUse.document.write(htmlWithFilename);
+    printWindowToUse.document.close();
+    printWindowToUse.document.title = filename.replace('.pdf', '');
+    printWindowToUse.focus();
 
     // Wait for content to load, then trigger print
     // The filename will be shown in the document title and can be used when saving
     setTimeout(() => {
-      printWindow.print();
+      try {
+        if (!printWindowToUse.closed) {
+          printWindowToUse.print();
+        }
+      } catch (e) {
+        console.warn("Print failed:", e);
+      }
       // Show a message to the user about the filename
       console.log(`PDF ready for print. Suggested filename: ${filename}`);
     }, 500);

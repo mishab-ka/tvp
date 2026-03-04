@@ -442,6 +442,9 @@ const TVPOwnersManagement = () => {
     try {
       setBillFormSubmitting(true);
 
+      // Open print window in same user gesture to avoid pop-up blocking (before any await)
+      const printWindowRef = window.open("", "_blank");
+
       // Calculate week range from rental days or use current week
       let weekStart = billData.weekStart;
       let weekEnd = billData.weekEnd;
@@ -502,7 +505,7 @@ const TVPOwnersManagement = () => {
       };
 
       console.log("Exporting bill with data:", billForExport);
-      const exportedFilename = exportBillToPDF(billForExport);
+      const exportedFilename = exportBillToPDF(billForExport, printWindowRef);
 
       // Show user the filename that will be used
       // Note: Browser print dialog doesn't support custom filenames,
