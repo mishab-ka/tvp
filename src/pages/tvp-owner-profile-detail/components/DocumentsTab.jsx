@@ -1,363 +1,301 @@
-import React, { useState } from 'react';
-import Icon from '../../../components/AppIcon';
-import Button from '../../../components/ui/Button';
-import Input from '../../../components/ui/Input';
+import React, { useState } from "react";
+import Icon from "../../../components/AppIcon";
+import Button from "../../../components/ui/Button";
+import Input from "../../../components/ui/Input";
 
-const DocumentsTab = ({ documents, onDocumentUpload, onDocumentUpdate, onDocumentDelete }) => {
+const CARD = "bg-card rounded-2xl border border-border/80 shadow-sm overflow-hidden";
+const PADDING = "p-6";
+const BOX = "rounded-xl border border-border/80 bg-muted/30 p-4";
+const SECTION_TITLE = "text-xl font-bold text-foreground";
+
+const DOCUMENT_TYPES = [
+  { value: "aadhaar", label: "Aadhaar", icon: "CreditCard" },
+  { value: "license", label: "License", icon: "IdCard" },
+  { value: "insurance", label: "Insurance", icon: "Shield" },
+  { value: "registration", label: "Registration", icon: "FileCheck" },
+  { value: "contract", label: "Contract", icon: "FileSignature" },
+  { value: "financial", label: "Financial", icon: "Wallet" },
+  { value: "other", label: "Other", icon: "File" },
+];
+
+const DocumentsTab = ({
+  documents,
+  onDocumentUpload,
+  onDocumentUpdate,
+  onDocumentDelete,
+}) => {
   const [dragActive, setDragActive] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [uploadCategory, setUploadCategory] = useState(null);
   const [uploadData, setUploadData] = useState({
-    category: 'license',
-    description: '',
-    expiryDate: ''
+    category: "license",
+    description: "",
+    expiryDate: "",
   });
 
-  const documentCategories = [
-    { value: 'all', label: 'All Documents' },
-    { value: 'license', label: 'License' },
-    { value: 'insurance', label: 'Insurance' },
-    { value: 'registration', label: 'Registration' },
-    { value: 'contract', label: 'Contract' },
-    { value: 'financial', label: 'Financial' },
-    { value: 'other', label: 'Other' }
-  ];
-
-  const filteredDocuments = documents?.filter(doc => {
-    const matchesCategory = selectedCategory === 'all' || doc?.category === selectedCategory;
-    const matchesSearch = doc?.name?.toLowerCase()?.includes(searchTerm?.toLowerCase()) ||
-                         doc?.description?.toLowerCase()?.includes(searchTerm?.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  const filteredBySearch = documents?.filter(
+    (doc) =>
+      doc?.name?.toLowerCase()?.includes(searchTerm?.toLowerCase()) ||
+      doc?.description?.toLowerCase()?.includes(searchTerm?.toLowerCase()),
+  );
 
   const handleDrag = (e) => {
     e?.preventDefault();
     e?.stopPropagation();
-    if (e?.type === 'dragenter' || e?.type === 'dragover') {
-      setDragActive(true);
-    } else if (e?.type === 'dragleave') {
-      setDragActive(false);
-    }
+    if (e?.type === "dragenter" || e?.type === "dragover") setDragActive(true);
+    else if (e?.type === "dragleave") setDragActive(false);
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = (e, category) => {
     e?.preventDefault();
     e?.stopPropagation();
     setDragActive(false);
-    
-    if (e?.dataTransfer?.files && e?.dataTransfer?.files?.[0]) {
-      handleFileUpload(e?.dataTransfer?.files?.[0]);
+    if (e?.dataTransfer?.files?.[0]) {
+      handleFileUpload(e.dataTransfer.files[0], category);
     }
   };
 
-  const handleFileUpload = (file) => {
-    const document = {
-      id: `DOC${String(documents?.length + 1)?.padStart(3, '0')}`,
+  const handleFileUpload = (file, category) => {
+    const doc = {
+      id: `DOC${String(documents?.length + 1)?.padStart(3, "0")}`,
       name: file?.name,
-      category: uploadData?.category,
+      category: category ?? uploadData?.category,
       description: uploadData?.description || file?.name,
       size: file?.size,
       type: file?.type,
-      uploadDate: new Date()?.toISOString()?.split('T')?.[0],
+      uploadDate: new Date()?.toISOString()?.split("T")?.[0],
       expiryDate: uploadData?.expiryDate,
-      status: 'pending',
+      status: "pending",
       version: 1,
-      url: URL.createObjectURL(file)
+      url: URL.createObjectURL(file),
     };
-    
-    onDocumentUpload(document);
-    setUploadData({
-      category: 'license',
-      description: '',
-      expiryDate: ''
-    });
-    setShowUploadForm(false);
-  };
-
-  const handleFileInput = (e) => {
-    if (e?.target?.files && e?.target?.files?.[0]) {
-      handleFileUpload(e?.target?.files?.[0]);
-    }
+    onDocumentUpload(doc);
+    setUploadData({ category: "license", description: "", expiryDate: "" });
+    setUploadCategory(null);
   };
 
   const getDocumentIcon = (type) => {
-    if (type?.includes('pdf')) return 'FileText';
-    if (type?.includes('image')) return 'Image';
-    if (type?.includes('word')) return 'FileText';
-    if (type?.includes('excel')) return 'FileSpreadsheet';
-    return 'File';
+    if (type?.includes("pdf")) return "FileText";
+    if (type?.includes("image")) return "Image";
+    return "File";
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'approved': return 'bg-success text-success-foreground';
-      case 'pending': return 'bg-warning text-warning-foreground';
-      case 'rejected': return 'bg-error text-error-foreground';
-      case 'expired': return 'bg-destructive text-destructive-foreground';
-      default: return 'bg-muted text-muted-foreground';
+      case "approved":
+        return "bg-success/15 text-success border border-success/30";
+      case "pending":
+        return "bg-warning/15 text-warning border border-warning/30";
+      case "rejected":
+        return "bg-destructive/15 text-destructive border border-destructive/30";
+      case "expired":
+        return "bg-destructive/15 text-destructive border border-destructive/30";
+      default:
+        return "bg-muted text-muted-foreground border border-border";
     }
   };
 
   const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
+    if (!bytes) return "0 B";
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i))?.toFixed(2)) + ' ' + sizes?.[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
   const isExpiringSoon = (expiryDate) => {
     if (!expiryDate) return false;
-    const today = new Date();
-    const expiry = new Date(expiryDate);
-    const diffTime = expiry - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffDays = Math.ceil((new Date(expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
     return diffDays <= 30 && diffDays > 0;
   };
 
   const isExpired = (expiryDate) => {
-    if (!expiryDate) return false;
-    const today = new Date();
-    const expiry = new Date(expiryDate);
-    return expiry < today;
+    return expiryDate && new Date(expiryDate) < new Date();
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header with Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex-1 max-w-md">
-          <Input
-            type="search"
-            placeholder="Search documents..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e?.target?.value)}
-          />
-        </div>
-        
-        <div className="flex items-center space-x-3">
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e?.target?.value)}
-            className="px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            {documentCategories?.map(category => (
-              <option key={category?.value} value={category?.value}>
-                {category?.label}
-              </option>
-            ))}
-          </select>
-          
-          <Button
-            variant="default"
-            onClick={() => setShowUploadForm(true)}
-            iconName="Upload"
-            iconPosition="left"
-            iconSize={16}
-          >
-            Upload Document
-          </Button>
+    <div className="space-y-6 max-w-6xl">
+      {/* Header */}
+      <div className={CARD}>
+        <div className={PADDING}>
+          <h2 className={`${SECTION_TITLE} mb-4 flex items-center gap-3`}>
+            <span className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Icon name="FileText" size={22} className="text-primary" />
+            </span>
+            Document Management
+          </h2>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 max-w-md">
+              <label className="flex items-center gap-2 text-sm font-semibold text-foreground mb-1.5">
+                <Icon name="Search" size={16} className="text-muted-foreground" />
+                Search documents
+              </label>
+              <Input
+                type="search"
+                placeholder="Search by name or description..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e?.target?.value)}
+              />
+            </div>
+          </div>
         </div>
       </div>
-      {/* Upload Form */}
-      {showUploadForm && (
-        <div className="bg-card rounded-lg border border-border p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-card-foreground">Upload New Document</h3>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowUploadForm(false)}
-              iconName="X"
-              iconSize={16}
-            >
-              <span className="sr-only">Close</span>
-            </Button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Category</label>
-              <select
-                value={uploadData?.category}
-                onChange={(e) => setUploadData(prev => ({ ...prev, category: e?.target?.value }))}
-                className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {documentCategories?.slice(1)?.map(category => (
-                  <option key={category?.value} value={category?.value}>
-                    {category?.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <Input
-              label="Description"
-              type="text"
-              value={uploadData?.description}
-              onChange={(e) => setUploadData(prev => ({ ...prev, description: e?.target?.value }))}
-              placeholder="Document description"
-            />
-            
-            <Input
-              label="Expiry Date (Optional)"
-              type="date"
-              value={uploadData?.expiryDate}
-              onChange={(e) => setUploadData(prev => ({ ...prev, expiryDate: e?.target?.value }))}
-            />
-          </div>
-          
-          {/* Drag and Drop Area */}
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              dragActive ? 'border-primary bg-primary/5' : 'border-border'
-            }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <Icon name="Upload" size={48} className="mx-auto text-muted-foreground mb-4" />
-            <h4 className="text-lg font-medium text-foreground mb-2">Drop files here or click to upload</h4>
-            <p className="text-muted-foreground mb-4">Supports PDF, DOC, DOCX, JPG, PNG files up to 10MB</p>
-            
-            <input
-              type="file"
-              onChange={handleFileInput}
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-              className="hidden"
-              id="file-upload"
-            />
-            <label htmlFor="file-upload">
-              <Button variant="outline" asChild>
-                <span>Choose File</span>
+
+      {/* Upload form (when a category is selected for upload) */}
+      {uploadCategory && (
+        <div className={CARD}>
+          <div className={PADDING}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={`${SECTION_TITLE} flex items-center gap-3`}>
+                <Icon name="Upload" size={24} className="text-primary" />
+                Upload {DOCUMENT_TYPES.find((t) => t.value === uploadCategory)?.label}
+              </h3>
+              <Button variant="ghost" size="icon" onClick={() => setUploadCategory(null)} iconName="X" iconSize={18}>
+                <span className="sr-only">Close</span>
               </Button>
-            </label>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <Input
+                label="Description"
+                type="text"
+                value={uploadData?.description}
+                onChange={(e) => setUploadData((p) => ({ ...p, description: e?.target?.value }))}
+                placeholder="Optional description"
+              />
+              <Input
+                label="Expiry date (optional)"
+                type="date"
+                value={uploadData?.expiryDate}
+                onChange={(e) => setUploadData((p) => ({ ...p, expiryDate: e?.target?.value }))}
+              />
+            </div>
+            <div
+              className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+                dragActive ? "border-primary bg-primary/5" : "border-border/80 bg-muted/20"
+              }`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={(e) => handleDrop(e, uploadCategory)}
+            >
+              <Icon name="Upload" size={40} className="mx-auto text-muted-foreground mb-3" />
+              <p className="text-base font-semibold text-foreground mb-1">Drop file here or click to upload</p>
+              <p className="text-sm text-muted-foreground mb-4">PDF, DOC, DOCX, JPG, PNG up to 10MB</p>
+              <input
+                type="file"
+                onChange={(e) => e?.target?.files?.[0] && handleFileUpload(e.target.files[0], uploadCategory)}
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                className="hidden"
+                id="file-upload-docs"
+              />
+              <label htmlFor="file-upload-docs">
+                <Button variant="outline" type="button" asChild>
+                  <span>Choose file</span>
+                </Button>
+              </label>
+            </div>
           </div>
         </div>
       )}
-      {/* Documents Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filteredDocuments?.map((document) => (
-          <div key={document?.id} className="bg-card rounded-lg border border-border p-4">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
-                  <Icon name={getDocumentIcon(document?.type)} size={20} className="text-muted-foreground" />
+
+      {/* Document type cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {DOCUMENT_TYPES.map(({ value, label, icon }) => {
+          const typeDocs = (searchTerm ? filteredBySearch : documents)?.filter((d) => d?.category === value) ?? [];
+          return (
+            <div key={value} className={CARD}>
+              <div className={PADDING}>
+                <div className="flex items-center justify-between gap-4 mb-4 pb-4 border-b border-border/60">
+                  <h3 className={`${SECTION_TITLE} flex items-center gap-3`}>
+                    <span className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <Icon name={icon} size={22} className="text-primary" />
+                    </span>
+                    {label}
+                  </h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setUploadData((p) => ({ ...p, category: value }));
+                      setUploadCategory(value);
+                    }}
+                    iconName="Upload"
+                    iconPosition="left"
+                    iconSize={14}
+                  >
+                    Upload
+                  </Button>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-card-foreground truncate">{document?.name}</h4>
-                  <p className="text-sm text-muted-foreground">{document?.category}</p>
+                <div className="space-y-3">
+                  {typeDocs.length === 0 ? (
+                    <div
+                      className={`${BOX} border-dashed text-center py-8 cursor-pointer hover:bg-muted/50 transition-colors`}
+                      onClick={() => {
+                        setUploadData((p) => ({ ...p, category: value }));
+                        setUploadCategory(value);
+                      }}
+                    >
+                      <Icon name="FilePlus" size={32} className="mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm font-semibold text-foreground">No {label.toLowerCase()} uploaded</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Click or upload above to add</p>
+                    </div>
+                  ) : (
+                    typeDocs.map((doc) => (
+                      <div key={doc?.id} className={`${BOX} flex items-center justify-between gap-4`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="w-10 h-10 rounded-xl bg-background border border-border/80 flex items-center justify-center shrink-0">
+                            <Icon name={getDocumentIcon(doc?.type)} size={20} className="text-muted-foreground" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-foreground truncate">{doc?.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(doc?.size)} · {doc?.uploadDate}
+                              {doc?.expiryDate &&
+                                ` · Expires ${doc.expiryDate}${isExpired(doc.expiryDate) ? " (Expired)" : isExpiringSoon(doc.expiryDate) ? " (Soon)" : ""}`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase ${getStatusColor(doc?.status)}`}>
+                            {doc?.status}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            iconName="Download"
+                            iconSize={14}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => onDocumentDelete(doc?.id)}
+                            iconName="Trash2"
+                            iconSize={14}
+                          >
+                            <span className="sr-only">Delete</span>
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
-              </div>
-              
-              <div className="flex items-center space-x-1">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(document?.status)}`}>
-                  {document?.status}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  iconName="MoreVertical"
-                  iconSize={14}
-                >
-                  <span className="sr-only">More options</span>
-                </Button>
               </div>
             </div>
-
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Size:</span>
-                <span className="font-medium">{formatFileSize(document?.size)}</span>
-              </div>
-              
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Uploaded:</span>
-                <span className="font-medium">{document?.uploadDate}</span>
-              </div>
-              
-              {document?.expiryDate && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Expires:</span>
-                  <span className={`font-medium ${
-                    isExpired(document?.expiryDate) ? 'text-error' :
-                    isExpiringSoon(document?.expiryDate) ? 'text-warning' : ''
-                  }`}>
-                    {document?.expiryDate}
-                    {isExpired(document?.expiryDate) && ' (Expired)'}
-                    {isExpiringSoon(document?.expiryDate) && !isExpired(document?.expiryDate) && ' (Expiring Soon)'}
-                  </span>
-                </div>
-              )}
-              
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Version:</span>
-                <span className="font-medium">v{document?.version}</span>
-              </div>
-            </div>
-
-            {document?.description && (
-              <p className="text-sm text-muted-foreground mt-3 p-2 bg-muted rounded">
-                {document?.description}
-              </p>
-            )}
-
-            <div className="flex space-x-2 mt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                fullWidth
-                iconName="Eye"
-                iconPosition="left"
-                iconSize={14}
-              >
-                View
-              </Button>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                fullWidth
-                iconName="Download"
-                iconPosition="left"
-                iconSize={14}
-              >
-                Download
-              </Button>
-              
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => onDocumentDelete(document?.id)}
-                iconName="Trash2"
-                iconSize={14}
-              >
-                <span className="sr-only">Delete document</span>
-              </Button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      {filteredDocuments?.length === 0 && (
-        <div className="text-center py-12">
-          <Icon name="FileText" size={48} className="mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">No documents found</h3>
-          <p className="text-muted-foreground mb-4">
-            {searchTerm || selectedCategory !== 'all' ?'Try adjusting your search or filter criteria.' :'Upload the first document for this TVP owner.'}
-          </p>
-          {!searchTerm && selectedCategory === 'all' && (
-            <Button
-              variant="default"
-              onClick={() => setShowUploadForm(true)}
-              iconName="Upload"
-              iconPosition="left"
-              iconSize={16}
-            >
-              Upload First Document
-            </Button>
-          )}
+
+      {(!documents?.length || (searchTerm && !filteredBySearch?.length)) && (
+        <div className={CARD}>
+          <div className="p-12 text-center border border-dashed border-border/80 rounded-2xl bg-muted/20">
+            <Icon name="FileText" size={48} className="mx-auto text-muted-foreground mb-3" />
+            <p className="text-lg font-bold text-foreground mb-1">No documents found</p>
+            <p className="text-sm text-muted-foreground">
+              {searchTerm ? "Try a different search." : "Upload documents using the cards above."}
+            </p>
+          </div>
         </div>
       )}
     </div>

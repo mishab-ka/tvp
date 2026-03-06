@@ -264,42 +264,45 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
     return colors?.[status] || colors?.inactive;
   };
 
+  const CARD = "bg-card rounded-2xl border border-border/80 shadow-sm overflow-hidden";
+  const PADDING = "p-5";
+  const BOX = "rounded-xl border border-border/80 bg-muted/30 p-4";
+  const SECTION_TITLE = "text-lg font-bold text-foreground flex items-center gap-2";
+
   const renderProfileTab = () => (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Owner Avatar and Basic Info */}
-      <div className="text-center pb-6 border-b border-border">
-        <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-          <Icon name="User" size={32} className="text-muted-foreground" />
+      {/* <div className={`${CARD} ${PADDING} text-center`}>
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-3">
+          <Icon name="User" size={28} className="text-primary" />
         </div>
-        <h2 className="text-xl font-semibold text-foreground">{owner?.name}</h2>
-        <p className="text-sm text-muted-foreground">{owner?.tvpId}</p>
-        <div className="flex items-center justify-center gap-3 mt-2">
-          <div
-            className={`inline-flex items-center ${getStatusColor(
+        <h2 className="text-xl font-bold text-foreground">{owner?.name}</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">{owner?.tvpId}</p>
+        <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
+          <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold capitalize border ${getStatusColor(
               owner?.status,
             )}`}
           >
-            <Icon name="Circle" size={8} className="mr-2 fill-current" />
-            <span className="text-sm font-medium capitalize">
-              {owner?.status?.replace("_", " ")}
-            </span>
-          </div>
-          <div className="inline-flex items-center text-secondary">
-            <Icon name="User" size={8} className="mr-2" />
-            <span className="text-sm font-medium capitalize">
-              {owner?.category === "double_driver"
-                ? "Double Driver"
-                : "Single Driver"}
-            </span>
-          </div>
+            <Icon name="Circle" size={6} className="fill-current" />
+            {owner?.status?.replace("_", " ")}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-secondary/10 text-secondary border border-secondary/20">
+            <Icon name="User" size={12} />
+            {owner?.category === "double_driver" ? "Double Driver" : "Single Driver"}
+          </span>
         </div>
-      </div>
+      </div> */}
 
       {/* Contact Information */}
-      <div>
-        <h3 className="text-sm font-medium text-foreground mb-3">
-          Contact Information
-        </h3>
+      <div className={CARD}>
+        <div className={`${PADDING} border-b border-border/60`}>
+          <h3 className={SECTION_TITLE}>
+            <Icon name="Phone" size={20} className="text-primary shrink-0" />
+            Contact Information
+          </h3>
+        </div>
+        <div className={PADDING}>
         <div className="space-y-3">
           {isEditing ? (
             <>
@@ -418,58 +421,70 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                 <Icon
                   name="MapPin"
                   size={16}
-                  className="text-muted-foreground mt-0.5"
+                  className="text-muted-foreground mt-0.5 shrink-0"
                 />
                 <span className="text-sm text-foreground">
-                  {owner?.address || "Not provided"}
+                  {owner?.address || "Address not provided"}
                 </span>
               </div>
             </>
           )}
         </div>
+        </div>
       </div>
 
       {/* Vehicle Numbers */}
-      <div>
-        <h3 className="text-sm font-medium text-foreground mb-3">
-          Vehicle Numbers
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          {resolveVehicleNumbers().length > 0 ? (
-            resolveVehicleNumbers().map((vehicle, index) => (
-              <span
-                key={index}
-                className="inline-flex items-center px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium border border-primary/20"
-              >
-                <Icon name="Car" size={14} className="mr-2" />
-                {vehicle}
+      <div className={CARD}>
+        <div className={`${PADDING} border-b border-border/60`}>
+          <h3 className={SECTION_TITLE}>
+            <Icon name="Car" size={20} className="text-primary shrink-0" />
+            Vehicle Numbers
+          </h3>
+        </div>
+        <div className={PADDING}>
+          <div className="flex flex-wrap gap-2">
+            {resolveVehicleNumbers().length > 0 ? (
+              resolveVehicleNumbers().map((vehicle, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center px-3 py-2 rounded-xl bg-primary/10 text-primary text-sm font-semibold border border-primary/20"
+                >
+                  <Icon name="Car" size={14} className="mr-2 shrink-0" />
+                  {vehicle}
+                </span>
+              ))
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                No vehicles assigned
               </span>
-            ))
-          ) : (
-            <span className="text-sm text-muted-foreground">
-              No vehicles assigned
-            </span>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
       {/* Metrics */}
-      <div>
-        <h3 className="text-sm font-medium text-foreground mb-3">Metrics</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-muted/30 p-3 rounded-lg">
+      <div className={CARD}>
+        <div className={`${PADDING} border-b border-border/60`}>
+          <h3 className={SECTION_TITLE}>
+            <Icon name="BarChart3" size={20} className="text-primary shrink-0" />
+            Metrics
+          </h3>
+        </div>
+        <div className={PADDING}>
+        <div className="grid grid-cols-2 gap-3">
+          <div className={BOX}>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Vehicles</span>
-              <Icon name="Car" size={14} className="text-primary" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Vehicles</span>
+              <Icon name="Car" size={16} className="text-primary shrink-0" />
             </div>
-            <div className="text-lg font-semibold text-foreground mt-1">
-              {owner?.vehicleCount}
+            <div className="text-xl font-bold text-foreground mt-1 tabular-nums">
+              {owner?.vehicleCount ?? 0}
             </div>
           </div>
-          <div className="bg-muted/30 p-3 rounded-lg">
+          <div className={BOX}>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Rental Days</span>
-              <Icon name="Calendar" size={14} className="text-secondary" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rental Days</span>
+              <Icon name="Calendar" size={16} className="text-primary shrink-0" />
             </div>
             {isEditing ? (
               <Input
@@ -489,126 +504,163 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                 className="mt-1"
               />
             ) : (
-              <div className="text-lg font-semibold text-foreground mt-1">
+              <div className="text-xl font-bold text-foreground mt-1 tabular-nums">
                 {owner?.cumulativeRentalDays ?? 0}
               </div>
             )}
           </div>
-          <div className="bg-muted/30 p-3 rounded-lg">
+          <div className={BOX}>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Category</span>
-              <Icon name="User" size={14} className="text-primary" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Category</span>
+              <Icon name="User" size={16} className="text-primary shrink-0" />
             </div>
-            <div className="text-lg font-semibold text-foreground mt-1 capitalize">
+            <div className="text-xl font-bold text-foreground mt-1 capitalize">
               {owner?.category === "double_driver" ? "Double" : "Single"}
             </div>
           </div>
         </div>
+        </div>
       </div>
 
-      {/* Additional Financial Information */}
-      <div>
-        <h3 className="text-sm font-medium text-foreground mb-3">
-          Additional Financial Information
-        </h3>
-        <div className="grid grid-cols-1 gap-3">
-          <div className="bg-muted/30 p-3 rounded-lg">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
-                Room Deposit
-              </span>
-              <Icon name="Home" size={14} className="text-primary" />
-            </div>
-            {isEditing ? (
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={editData.roomDeposit ?? owner?.roomDeposit ?? 0}
-                onChange={(e) =>
-                  setEditData({
-                    ...editData,
-                    roomDeposit: parseFloat(e.target.value) || 0,
-                  })
-                }
-                className="mt-1"
-              />
-            ) : (
-              <div className="text-lg font-semibold text-foreground mt-1">
-                {formatCurrency(owner?.roomDeposit ?? 0)}
+      {/* Additional Financial Information — 2-col grid: row1 Room Deposit | Deposit, row2 Pre-Paid Rent | Documents Charge */}
+      <div className={CARD}>
+        <div className={`${PADDING} border-b border-border/60`}>
+          <h3 className={SECTION_TITLE}>
+            <Icon name="DollarSign" size={20} className="text-primary shrink-0" />
+            Additional Financial Information
+          </h3>
+        </div>
+        <div className={PADDING}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className={BOX}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Room Deposit
+                </span>
+                <Icon name="Home" size={16} className="text-primary shrink-0" />
               </div>
-            )}
-          </div>
-          <div className="bg-muted/30 p-3 rounded-lg">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
-                Pre-Paid Rent Amount
-              </span>
-              <Icon name="Wallet" size={14} className="text-success" />
+              {isEditing ? (
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editData.roomDeposit ?? owner?.roomDeposit ?? 0}
+                  onChange={(e) =>
+                    setEditData({
+                      ...editData,
+                      roomDeposit: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  className="mt-1"
+                />
+              ) : (
+                <div className={`text-lg font-bold mt-1 tabular-nums ${(Number(owner?.roomDeposit) || 0) < 0 ? "text-destructive" : (Number(owner?.roomDeposit) || 0) > 0 ? "text-success" : "text-foreground"}`}>
+                  {formatCurrency(owner?.roomDeposit ?? 0)}
+                </div>
+              )}
             </div>
-            {isEditing ? (
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={
-                  editData.prePaidRentAmount ?? owner?.prePaidRentAmount ?? 0
-                }
-                onChange={(e) =>
-                  setEditData({
-                    ...editData,
-                    prePaidRentAmount: parseFloat(e.target.value) || 0,
-                  })
-                }
-                className="mt-1"
-              />
-            ) : (
-              <div className="text-lg font-semibold text-foreground mt-1">
-                {formatCurrency(owner?.prePaidRentAmount ?? 0)}
+            <div className={BOX}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Deposit
+                </span>
+                <Icon name="Wallet" size={16} className="text-primary shrink-0" />
               </div>
-            )}
-          </div>
-          <div className="bg-muted/30 p-3 rounded-lg">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">
-                Documents Charge
-              </span>
-              <Icon name="FileText" size={14} className="text-secondary" />
+              {isEditing ? (
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editData.depositAmount ?? owner?.depositAmount ?? owner?.deposit_amount ?? 0}
+                  onChange={(e) =>
+                    setEditData({
+                      ...editData,
+                      depositAmount: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  className="mt-1"
+                />
+              ) : (
+                <div className={`text-lg font-bold mt-1 tabular-nums ${(Number(owner?.depositAmount ?? owner?.deposit_amount) || 0) < 0 ? "text-destructive" : (Number(owner?.depositAmount ?? owner?.deposit_amount) || 0) > 0 ? "text-success" : "text-foreground"}`}>
+                  {formatCurrency(owner?.depositAmount ?? owner?.deposit_amount ?? 0)}
+                </div>
+              )}
             </div>
-            {isEditing ? (
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={editData.documentsCharge ?? owner?.documentsCharge ?? 0}
-                onChange={(e) =>
-                  setEditData({
-                    ...editData,
-                    documentsCharge: parseFloat(e.target.value) || 0,
-                  })
-                }
-                className="mt-1"
-              />
-            ) : (
-              <div className="text-lg font-semibold text-foreground mt-1">
-                {formatCurrency(owner?.documentsCharge ?? 0)}
+            <div className={BOX}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Pre-Paid Rent Amount
+                </span>
+                <Icon name="Wallet" size={16} className="text-success shrink-0" />
               </div>
-            )}
+              {isEditing ? (
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={
+                    editData.prePaidRentAmount ?? owner?.prePaidRentAmount ?? 0
+                  }
+                  onChange={(e) =>
+                    setEditData({
+                      ...editData,
+                      prePaidRentAmount: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  className="mt-1"
+                />
+              ) : (
+                <div className={`text-lg font-bold mt-1 tabular-nums ${(Number(owner?.prePaidRentAmount) || 0) < 0 ? "text-destructive" : (Number(owner?.prePaidRentAmount) || 0) > 0 ? "text-success" : "text-foreground"}`}>
+                  {formatCurrency(owner?.prePaidRentAmount ?? 0)}
+                </div>
+              )}
+            </div>
+            <div className={BOX}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Documents Charge
+                </span>
+                <Icon name="FileText" size={16} className="text-primary shrink-0" />
+              </div>
+              {isEditing ? (
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editData.documentsCharge ?? owner?.documentsCharge ?? 0}
+                  onChange={(e) =>
+                    setEditData({
+                      ...editData,
+                      documentsCharge: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  className="mt-1"
+                />
+              ) : (
+                <div className={`text-lg font-bold mt-1 tabular-nums ${(Number(owner?.documentsCharge) || 0) < 0 ? "text-destructive" : (Number(owner?.documentsCharge) || 0) > 0 ? "text-success" : "text-foreground"}`}>
+                  {formatCurrency(owner?.documentsCharge ?? 0)}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Bill options: Including Room */}
-      <div>
-        <h3 className="text-sm font-medium text-foreground mb-3">
-          Bill options
-        </h3>
-        <div className="bg-muted/30 p-3 rounded-lg">
+      <div className={CARD}>
+        <div className={`${PADDING} border-b border-border/60`}>
+          <h3 className={SECTION_TITLE}>
+            <Icon name="Settings" size={20} className="text-primary shrink-0" />
+            Bill options
+          </h3>
+        </div>
+        <div className={PADDING}>
+        <div className={BOX}>
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
+            <span className="text-sm font-semibold text-foreground">
               Including room
             </span>
-            <Icon name="Home" size={14} className="text-primary" />
+            <Icon name="Home" size={16} className="text-primary shrink-0" />
           </div>
           {isEditing ? (
             <Checkbox
@@ -624,18 +676,23 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
               className="mt-2"
             />
           ) : (
-            <div className="text-lg font-semibold text-foreground mt-1">
+            <div className="text-lg font-bold text-foreground mt-1">
               {owner?.includingRoom ? "Yes" : "No"}
             </div>
           )}
         </div>
+        </div>
       </div>
 
       {/* Quick Actions */}
-      <div>
-        <h3 className="text-sm font-medium text-foreground mb-3">
-          Quick Actions
-        </h3>
+      <div className={CARD}>
+        <div className={`${PADDING} border-b border-border/60`}>
+          <h3 className={SECTION_TITLE}>
+            <Icon name="Zap" size={20} className="text-primary shrink-0" />
+            Quick Actions
+          </h3>
+        </div>
+        <div className={PADDING}>
         <div className="grid grid-cols-2 gap-2">
           <Button
             variant="outline"
@@ -679,90 +736,107 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
             Apply Penalty
           </Button>
         </div>
+        </div>
       </div>
     </div>
   );
 
-  const renderVehiclesTab = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-foreground">
-          Assigned Vehicles
-        </h3>
-        <Button
-          variant="outline"
-          size="sm"
-          iconName="Plus"
-          iconPosition="left"
-          iconSize={14}
-        >
-          Assign Vehicle
-        </Button>
-      </div>
-      <div className="space-y-3">
-        {owner?.vehicles?.length > 0 ? (
-          owner?.vehicles?.map((vehicle, index) => {
-            const plateNumber =
-              vehicle?.plateNumber ||
-              vehicle?.car_number ||
-              vehicle?.carNumber ||
-              `Vehicle #${index + 1}`;
-            const vehicleMeta = vehicle?.model
-              ? `${vehicle?.model}${vehicle?.year ? ` • ${vehicle?.year}` : ""}`
-              : vehicle?.fleetName ||
-                vehicle?.fleet_name ||
-                "Fleet not specified";
-            return (
-              <div
-                key={vehicle?.id || plateNumber}
-                className="p-3 border border-border rounded-lg"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium text-foreground">
-                      {plateNumber}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {vehicleMeta}
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span
-                      className={`px-2 py-1 text-xs rounded-full ${
-                        vehicle?.status === "active"
-                          ? "bg-success/10 text-success"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {vehicle?.status || "unknown"}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      iconName="MoreVertical"
-                      iconSize={14}
-                      className="h-6 w-6"
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="text-center py-8">
-            <Icon
-              name="Car"
-              size={32}
-              className="text-muted-foreground mx-auto mb-2"
-            />
-            <p className="text-sm text-muted-foreground">
-              No vehicles assigned
-            </p>
+  const renderVehiclesTab = () => {
+    const vehicleList = owner?.vehicles?.length > 0
+      ? owner.vehicles.map((v, i) => ({
+          id: v?.id || `v-${i}`,
+          plateNumber: v?.plateNumber || v?.car_number || v?.carNumber || `Vehicle #${i + 1}`,
+          meta: v?.model
+            ? `${v?.model}${v?.year ? ` • ${v?.year}` : ""}`
+            : v?.fleetName || v?.fleet_name || "Fleet not specified",
+          status: v?.status || "unknown",
+        }))
+      : resolveVehicleNumbers().map((plate, i) => ({
+          id: `plate-${i}`,
+          plateNumber: plate,
+          meta: "—",
+          status: "active",
+        }));
+    const hasVehicles = vehicleList.length > 0;
+
+    return (
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-border/60 flex items-center justify-between bg-gradient-to-r from-primary/10 to-primary/5">
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+              <span className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center">
+                <Icon name="Car" size={18} className="text-primary" />
+              </span>
+              Assigned Vehicles
+            </h3>
+            <Button
+              variant="default"
+              size="sm"
+              iconName="Plus"
+              iconPosition="left"
+              iconSize={14}
+            >
+              Assign Vehicle
+            </Button>
           </div>
-        )}
+          <div className="p-4">
+            {hasVehicles ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {vehicleList.map((vehicle) => (
+                  <div
+                    key={vehicle.id}
+                    className="rounded-xl border border-border/80 bg-muted/10 p-4 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Icon name="Car" size={20} className="text-primary" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-bold text-foreground truncate">
+                          {vehicle.plateNumber}
+                        </div>
+                        <div className="text-sm text-muted-foreground truncate">
+                          {vehicle.meta}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize ${
+                          vehicle.status === "active"
+                            ? "bg-success/15 text-success border border-success/30"
+                            : "bg-muted text-muted-foreground border border-border/60"
+                        }`}
+                      >
+                        {vehicle.status}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        iconName="MoreVertical"
+                        iconSize={14}
+                        className="h-8 w-8 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10 rounded-xl border-2 border-dashed border-border/80 bg-muted/5">
+                <Icon
+                  name="Car"
+                  size={40}
+                  className="text-muted-foreground mx-auto mb-3"
+                />
+                <p className="text-sm font-medium text-foreground">No vehicles assigned</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Assign a vehicle from the owner form or use the button above</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const loadPayments = async () => {
     if (!owner?.id) return;
@@ -982,254 +1056,242 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
     return totals;
   }, [payments]);
 
-  const renderFinancialTab = () => (
-    <div className="space-y-6">
-      {/* Financial Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-border p-4 rounded-lg">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">Deposit</span>
-            <Icon name="DollarSign" size={16} className="text-success" />
-          </div>
-          <div className="text-2xl font-bold text-foreground">
-            {formatCurrency(owner?.depositAmount)}
-          </div>
-        </div>
-
-        <div className="bg-white border border-border p-4 rounded-lg">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">
-              Outstanding Balance
-            </span>
-            <Icon
-              name="AlertCircle"
-              size={16}
-              className={(owner?.outstandingBalance ?? 0) > 0 ? "text-error" : "text-emerald-600 dark:text-emerald-400"}
-            />
-          </div>
-          <div
-            className={`text-2xl font-bold ${
-              (owner?.outstandingBalance ?? 0) > 0
-                ? "text-error"
-                : "text-emerald-600 dark:text-emerald-400"
-            }`}
-          >
-            {formatCurrency(Math.abs(owner?.outstandingBalance ?? 0))}
-          </div>
-        </div>
-
-        <div className="bg-white border border-border p-4 rounded-lg">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">
-              Pending Penalty (INR)
-            </span>
-            <Icon name="AlertTriangle" size={16} className="text-warning" />
-          </div>
-          <p className="text-xs text-muted-foreground mb-1">
-            Added to the driver&apos;s next generated bill; reduces after the bill is created.
-          </p>
-          {isEditing ? (
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={
-                editData.penaltyAmount ??
-                owner?.penaltyAmount ??
-                owner?.penalty_amount ??
-                0
-              }
-              onChange={(e) =>
-                setEditData({
-                  ...editData,
-                  penaltyAmount: parseFloat(e.target.value) || 0,
-                })
-              }
-            />
-          ) : (
-            <div className="text-2xl font-bold text-foreground">
-              {formatCurrency(owner?.penaltyAmount ?? owner?.penalty_amount ?? 0)}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white border border-border p-4 rounded-lg">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">
-              Cumulative Rental Days
-            </span>
-            <Icon name="Calendar" size={16} className="text-primary" />
-          </div>
-          {isEditing ? (
-            <Input
-              type="number"
-              min="0"
-              value={
-                editData.cumulativeRentalDays ??
-                owner?.cumulativeRentalDays ??
-                0
-              }
-              onChange={(e) =>
-                setEditData({
-                  ...editData,
-                  cumulativeRentalDays: parseInt(e.target.value) || 0,
-                })
-              }
-            />
-          ) : (
-            <div className="text-2xl font-bold text-foreground">
-              {owner?.cumulativeRentalDays ?? 0} days
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Amount collected by account (this driver) */}
-      <div>
-        <h3 className="text-sm font-medium text-foreground mb-3">
-          Amount collected by account
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-muted/30 p-4 rounded-lg border border-border">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-muted-foreground">LetzRyd A/c</span>
-              <Icon name="Building2" size={16} className="text-primary" />
-            </div>
-            <div className="text-xl font-bold text-foreground">
-              {formatCurrency(totalCollectedByAccount?.letzryd ?? 0)}
-            </div>
-          </div>
-          <div className="bg-muted/30 p-4 rounded-lg border border-border">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-muted-foreground">
-                Tawaaq Fleet A/c
+  const renderFinancialTab = () => {
+    const statCards = [
+      {
+        label: "Deposit",
+        value: formatCurrency(owner?.depositAmount),
+        icon: "DollarSign",
+        iconBg: "bg-success/15",
+        iconColor: "text-success",
+        valueColor: "text-foreground",
+      },
+      {
+        label: "OS Balance",
+        value: formatCurrency(Math.abs(owner?.outstandingBalance ?? 0)),
+        icon: "AlertCircle",
+        iconBg: (owner?.outstandingBalance ?? 0) > 0 ? "bg-destructive/15" : "bg-success/15",
+        iconColor: (owner?.outstandingBalance ?? 0) > 0 ? "text-destructive" : "text-success",
+        valueColor: (owner?.outstandingBalance ?? 0) > 0 ? "text-destructive" : "text-success",
+      },
+      {
+        label: "PP Balance",
+        value: formatCurrency(owner?.penaltyAmount ?? owner?.penalty_amount ?? 0),
+        icon: "AlertTriangle",
+        iconBg: "bg-warning/15",
+        iconColor: "text-warning",
+        valueColor: "text-foreground",
+       // hint: "Added to the driver's next bill; reduces after bill is created.",
+      },
+      {
+        label: "Rental Days",
+        value: `${owner?.cumulativeRentalDays ?? 0} days`,
+        icon: "Calendar",
+        iconBg: "bg-primary/15",
+        iconColor: "text-primary",
+        valueColor: "text-foreground",
+      },
+    ];
+    return (
+      <div className="space-y-5">
+        {/* Financial metrics – themed cards */}
+        <div className="rounded-2xl  bg-gradient-to-b from-card to-muted/20 shadow-sm overflow-hidden">
+          {/* <div className="p-4 border-b border-border/60 bg-primary/5">
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+              <span className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                <Icon name="BarChart3" size={18} className="text-primary" />
               </span>
-              <Icon name="Car" size={16} className="text-primary" />
-            </div>
-            <div className="text-xl font-bold text-foreground">
-              {formatCurrency(totalCollectedByAccount?.tawaaq_fleet ?? 0)}
-            </div>
-          </div>
-          <div className="bg-muted/30 p-4 rounded-lg border border-border">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-muted-foreground">
-                Cash In hand
-              </span>
-              <Icon name="Wallet" size={16} className="text-primary" />
-            </div>
-            <div className="text-xl font-bold text-foreground">
-              {formatCurrency(totalCollectedByAccount?.cash_in_hand ?? 0)}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Transactions preview */}
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <div className="p-4 border-b border-border flex items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium text-foreground">
-              Transactions
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Preview (latest 5)
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              iconName="Plus"
-              iconPosition="left"
-              iconSize={14}
-              onClick={() => setActiveTab("payments")}
-            >
-              Add / Edit
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setActiveTab("payments")}
-            >
-              View all
-            </Button>
-          </div>
-        </div>
-
-        <div className="p-4">
-          {paymentsLoading ? (
-            <div className="text-center py-6">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
-              <p className="text-sm text-muted-foreground">
-                Loading transactions...
-              </p>
-            </div>
-          ) : payments.length === 0 ? (
-            <div className="text-center py-6 border border-dashed border-border rounded-lg">
-              <Icon
-                name="CreditCard"
-                size={24}
-                className="text-muted-foreground mx-auto mb-2"
-              />
-              <p className="text-sm text-muted-foreground">
-                No transactions yet
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {payments.slice(0, 5).map((payment) => (
+              Financial overview
+            </h3>
+          </div> */}
+   
+          <div className="p-0">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {statCards.map((card, idx) => (
                 <div
-                  key={payment.id}
-                  className="py-3 flex items-start justify-between gap-3"
+                  key={idx}
+                  className="rounded-xl border border-border/80 bg-card/80 backdrop-blur p-4 shadow-sm hover:shadow-md transition-shadow"
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {(() => {
-                        const { text, className } = formatTransactionAmount(payment.payment_type, payment.payment_amount);
-                        return <span className={`font-semibold ${className}`}>{text}</span>;
-                      })()}
-                      <span
-                        className={`text-xs px-2 py-1 rounded-md font-medium border ${getTransactionBadgeClass(payment.payment_type)}`}
-                      >
-                        {getPaymentTypeLabel(payment.payment_type)?.split(
-                          " (",
-                        )[0] || payment.payment_type}
-                      </span>
-                      {payment.account && (
-                        <span className="text-xs px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary">
-                          {getAccountLabel(payment.account)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {new Date(payment.payment_date).toLocaleDateString(
-                        "en-US",
-                        {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        },
-                      )}
-                      {payment.reference_number
-                        ? ` • Ref: ${payment.reference_number}`
-                        : ""}
-                    </div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${card.iconBg}`}>
+                      <Icon name={card.icon} size={18} className={card.iconColor} />
+                    </span>
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      {card.label}
+                    </span>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setActiveTab("payments")}
-                  >
-                    Open
-                  </Button>
+                  {card.hint && (
+                    <p className="text-[11px] text-muted-foreground mb-2 leading-tight">{card.hint}</p>
+                  )}
+                  {idx === 2 && isEditing ? (
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editData.penaltyAmount ?? owner?.penaltyAmount ?? owner?.penalty_amount ?? 0}
+                      onChange={(e) =>
+                        setEditData({ ...editData, penaltyAmount: parseFloat(e.target.value) || 0 })
+                      }
+                    />
+                  ) : idx === 3 && isEditing ? (
+                    <Input
+                      type="number"
+                      min="0"
+                      value={editData.cumulativeRentalDays ?? owner?.cumulativeRentalDays ?? 0}
+                      onChange={(e) =>
+                        setEditData({ ...editData, cumulativeRentalDays: parseInt(e.target.value) || 0 })
+                      }
+                    />
+                  ) : (
+                    <div className={`text-xl font-bold tabular-nums ${card.valueColor}`}>
+                      {card.value}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Amount collected by account */}
+        <div className="rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-border/60">
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+              <span className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                <Icon name="Wallet" size={18} className="text-primary" />
+              </span>
+              Amount collected by account
+            </h3>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {[
+                { key: "letzryd", label: "LetzRyd A/c", icon: "Building2" },
+                { key: "tawaaq_fleet", label: "Tawaaq Fleet A/c", icon: "Car" },
+                { key: "cash_in_hand", label: "Cash in hand", icon: "Wallet" },
+              ].map(({ key, label, icon }) => (
+                <div
+                  key={key}
+                  className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex items-center gap-4 hover:bg-primary/10 transition-colors"
+                >
+                  <span className="w-11 h-11 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+                    <Icon name={icon} size={22} className="text-primary" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      {label}
+                    </div>
+                    <div className="text-lg font-bold text-foreground tabular-nums">
+                      {formatCurrency(totalCollectedByAccount?.[key] ?? 0)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Transactions */}
+        <div className="rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-border/60 flex flex-wrap items-center justify-between gap-3 bg-muted/20">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                <Icon name="Receipt" size={18} className="text-primary" />
+              </span>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Transactions</h3>
+                <p className="text-xs text-muted-foreground">Preview (latest 5)</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="default"
+                size="sm"
+                iconName="Plus"
+                iconPosition="left"
+                iconSize={14}
+                onClick={() => setActiveTab("payments")}
+              >
+                Add / Edit
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setActiveTab("payments")}>
+                View all
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-4">
+            {paymentsLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">Loading transactions...</p>
+              </div>
+            ) : payments.length === 0 ? (
+              <div className="text-center py-8 rounded-xl border-2 border-dashed border-border/80 bg-muted/20">
+                <Icon name="CreditCard" size={32} className="text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm font-medium text-foreground">No transactions yet</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Add one from the Payments tab</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {payments.slice(0, 5).map((payment) => {
+                  const { text, className } = formatTransactionAmount(payment.payment_type, payment.payment_amount);
+                  const notes = payment.notes ?? payment.payment_notes ?? "";
+                  return (
+                    <div
+                      key={payment.id}
+                      className="rounded-xl border border-border/80 bg-muted/20 hover:bg-muted/40 p-4 flex items-start justify-between gap-4 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0 flex-wrap">
+                          <span className={`text-lg font-bold tabular-nums shrink-0 ${className}`}>
+                            {text}
+                          </span>
+                          <span
+                            className={`text-xs px-2.5 py-1 rounded-lg font-semibold border ${getTransactionBadgeClass(payment.payment_type)}`}
+                          >
+                            {getPaymentTypeLabel(payment.payment_type)?.split(" (")[0] || payment.payment_type}
+                          </span>
+                          {payment.account && (
+                            <span className="text-xs px-2.5 py-1 rounded-lg border border-primary/30 bg-primary/10 text-primary font-medium">
+                              {getAccountLabel(payment.account)}
+                            </span>
+                          )}
+                        </div>
+                        {notes && (
+                          <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2" title={notes}>
+                            {notes}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {new Date(payment.payment_date).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                          {payment.reference_number ? ` · ${payment.reference_number}` : ""}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => setActiveTab("payments")}
+                        >
+                          Open
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const documentEntries = [
     { key: "aadharFrontUrl", formKey: "aadharFront", label: "Aadhaar Front" },
@@ -1361,19 +1423,25 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
   };
 
   const renderDocumentsTab = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-foreground">Documents</h3>
-        <p className="text-xs text-muted-foreground">
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="rounded-2xl border border-border/80 bg-gradient-to-b from-card to-primary/5 shadow-sm p-4">
+        <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+          <span className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+            <Icon name="FileText" size={18} className="text-primary" />
+          </span>
+          Documents
+        </h3>
+        <p className="text-xs text-muted-foreground mt-1.5">
           Upload PDF or image files up to 10 MB each.
         </p>
       </div>
 
       {(documentError || documentMessage) && (
         <div
-          className={`rounded-lg px-3 py-2 text-sm ${
+          className={`rounded-xl px-4 py-3 text-sm font-medium ${
             documentError
-              ? "bg-error/10 text-error border border-error/30"
+              ? "bg-destructive/10 text-destructive border border-destructive/30"
               : "bg-success/10 text-success border border-success/30"
           }`}
         >
@@ -1381,254 +1449,231 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
         </div>
       )}
 
-      <div className="space-y-2">
+      {/* Pending upload cards – themed */}
+      <div className="space-y-3">
         {documentEntries.map((doc) => {
           const url = owner?.documents?.[doc.key];
           const isProcessing = isProcessingDocument(doc.formKey);
           return (
             <div
               key={doc.key}
-              className="flex flex-col gap-3 rounded-lg border border-border p-4 md:flex-row md:items-center md:justify-between"
+              className="rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden hover:shadow-md transition-shadow"
             >
-              <div className="flex items-start space-x-3">
-                <Icon
-                  name="FileText"
-                  size={16}
-                  className="mt-1 text-muted-foreground"
-                />
-                <div>
-                  <div className="text-sm font-medium text-foreground">
-                    {doc.label}
+              <div className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="w-11 h-11 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+                    <Icon name="FileText" size={22} className="text-primary" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-foreground">
+                      {doc.label}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {url ? "Uploaded" : "Pending upload"}
+                    </div>
+                    {url && (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                      >
+                        <Icon name="ExternalLink" size={12} className="shrink-0" />
+                        View current file
+                      </a>
+                    )}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {url ? "Uploaded" : "Pending upload"}
-                  </div>
-                  {url && (
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1 inline-flex items-center text-xs text-primary hover:underline"
-                    >
-                      <Icon name="ExternalLink" size={12} className="mr-1" />
-                      View current file
-                    </a>
-                  )}
                 </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="file"
-                  accept="image/*,application/pdf"
-                  className="hidden"
-                  ref={(ref) => {
-                    if (ref) {
-                      fileInputRefs.current[doc.formKey] = ref;
-                    }
-                  }}
-                  onChange={(event) => handleDocumentUpload(event, doc)}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  iconName="Upload"
-                  iconPosition="left"
-                  iconSize={14}
-                  disabled={isProcessing}
-                  onClick={() => fileInputRefs.current[doc.formKey]?.click?.()}
-                >
-                  {isProcessing ? "Processing..." : url ? "Replace" : "Upload"}
-                </Button>
-                {url && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    ref={(ref) => {
+                      if (ref) fileInputRefs.current[doc.formKey] = ref;
+                    }}
+                    onChange={(e) => handleDocumentUpload(e, doc)}
+                  />
                   <Button
-                    variant="ghost"
+                    variant="default"
                     size="sm"
-                    iconName="Trash2"
+                    iconName="Upload"
                     iconPosition="left"
                     iconSize={14}
-                    className="text-error"
                     disabled={isProcessing}
-                    onClick={() => handleDocumentDelete(doc)}
+                    onClick={() => fileInputRefs.current[doc.formKey]?.click?.()}
                   >
-                    Delete
+                    {isProcessing ? "Processing..." : url ? "Replace" : "Upload"}
                   </Button>
-                )}
+                  {url && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      iconName="Trash2"
+                      iconPosition="left"
+                      iconSize={14}
+                      className="text-destructive border-destructive/50 hover:bg-destructive/10"
+                      disabled={isProcessing}
+                      onClick={() => handleDocumentDelete(doc)}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Documents and Uber Driver Profile Photos */}
-      <div className="space-y-6 mt-6 pt-6 border-t border-border">
-        {/* Documents */}
-        <div>
-          <h3 className="text-sm font-medium text-foreground mb-3">
-            Documents
-          </h3>
-          <div className="space-y-3">
-            {documentEntries.map((doc) => {
-              const url = owner?.documents?.[doc.key];
-              const isProcessing = isProcessingDocument(doc.formKey);
-              if (!url) return null; // Only show uploaded documents
-              return (
-                <div
-                  key={doc.key}
-                  className="flex items-center justify-between rounded-lg border border-border p-3"
-                >
-                  <div className="flex items-center space-x-3">
-                    <Icon
-                      name="FileText"
-                      size={16}
-                      className="text-muted-foreground"
-                    />
-                    <div>
-                      <div className="text-sm font-medium text-foreground">
-                        {doc.label}
+      {/* Uploaded documents + Uber photos */}
+      <div className="space-y-5 pt-2 border-t border-border/60">
+        <div className="rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-border/60 bg-muted/10">
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+              <span className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                <Icon name="FolderOpen" size={18} className="text-primary" />
+              </span>
+              Uploaded documents
+            </h3>
+          </div>
+          <div className="p-4">
+            {documentEntries.some((doc) => owner?.documents?.[doc.key]) ? (
+              <div className="space-y-2">
+                {documentEntries.map((doc) => {
+                  const url = owner?.documents?.[doc.key];
+                  const isProcessing = isProcessingDocument(doc.formKey);
+                  if (!url) return null;
+                  return (
+                    <div
+                      key={doc.key}
+                      className="rounded-xl border border-border/80 bg-muted/20 p-4 flex items-center justify-between gap-4 hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="w-10 h-10 rounded-lg bg-success/15 flex items-center justify-center shrink-0">
+                          <Icon name="FileCheck" size={20} className="text-success" />
+                        </span>
+                        <div>
+                          <div className="text-sm font-semibold text-foreground">{doc.label}</div>
+                          <div className="text-xs text-success font-medium">Uploaded</div>
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        Uploaded
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button variant="outline" size="sm" iconName="Eye" iconSize={14} onClick={() => window.open(url, "_blank")}>
+                          View
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          iconName="Trash2"
+                          iconSize={14}
+                          className="text-destructive border-destructive/50"
+                          disabled={isProcessing}
+                          onClick={() => handleDocumentDelete(doc)}
+                        >
+                          Delete
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      iconName="Eye"
-                      iconPosition="left"
-                      iconSize={14}
-                      onClick={() => window.open(url, "_blank")}
-                    >
-                      View
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      iconName="Trash2"
-                      iconPosition="left"
-                      iconSize={14}
-                      className="text-error"
-                      disabled={isProcessing}
-                      onClick={() => handleDocumentDelete(doc)}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-            {!documentEntries.some((doc) => owner?.documents?.[doc.key]) && (
-              <div className="text-center py-6 border border-dashed border-border rounded-lg">
-                <Icon
-                  name="FileText"
-                  size={24}
-                  className="text-muted-foreground mx-auto mb-2"
-                />
-                <p className="text-sm text-muted-foreground">
-                  No documents uploaded
-                </p>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 rounded-xl border-2 border-dashed border-border/80 bg-muted/10">
+                <Icon name="FileText" size={36} className="text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm font-medium text-foreground">No documents uploaded</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Use the cards above to upload</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Uber Driver Profile Photos */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-foreground">
+        <div className="rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-border/60 flex items-center justify-between bg-muted/10">
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+              <span className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                <Icon name="Image" size={18} className="text-primary" />
+              </span>
               Uber Driver Profile Photos
             </h3>
-            <p className="text-xs text-muted-foreground">
+            <span className="text-xs font-semibold text-muted-foreground tabular-nums">
               {owner?.uberDriverPhotos?.length || 0} photo(s)
-            </p>
+            </span>
           </div>
-
-          {owner?.uberDriverPhotos &&
-          Array.isArray(owner.uberDriverPhotos) &&
-          owner.uberDriverPhotos.length > 0 ? (
-            <div className="grid grid-cols-3 gap-3">
-              {owner.uberDriverPhotos.map((photoUrl, index) => (
-                <div key={`uber-photo-${index}`} className="relative group">
-                  <img
-                    src={photoUrl}
-                    alt={`Uber driver profile ${index + 1}`}
-                    className="w-full h-32 object-cover rounded-lg border border-border"
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors rounded-lg flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      iconName="Eye"
-                      iconSize={14}
-                      className="text-white hover:bg-white/20 h-8"
-                      onClick={() => window.open(photoUrl, "_blank")}
-                    >
-                      View
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      iconName="Trash2"
-                      iconSize={14}
-                      className="text-white hover:bg-white/20 h-8 text-error hover:text-error"
-                      onClick={async () => {
-                        if (
-                          window.confirm(
-                            `Delete Uber driver photo ${index + 1}?`,
-                          )
-                        ) {
-                          try {
-                            const updatedPhotos = owner.uberDriverPhotos.filter(
-                              (_, i) => i !== index,
-                            );
-                            const payload = buildOwnerUpdatePayload({
-                              uberDriverPhotos: updatedPhotos,
-                              existingUberPhotos: updatedPhotos,
-                            });
-                            const updatedOwner = await updateTVPOwner(
-                              owner.id,
-                              payload,
-                            );
-                            setEditData(updatedOwner);
-                            onUpdate(updatedOwner);
-                          } catch (err) {
-                            console.error("Failed to delete photo:", err);
-                            alert(
-                              "Failed to delete photo: " +
-                                (err.message || "Unknown error"),
-                            );
+          <div className="p-4">
+            {owner?.uberDriverPhotos && Array.isArray(owner.uberDriverPhotos) && owner.uberDriverPhotos.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {owner.uberDriverPhotos.map((photoUrl, index) => (
+                  <div key={`uber-photo-${index}`} className="relative group rounded-xl overflow-hidden border border-border/80 shadow-sm">
+                    <img
+                      src={photoUrl}
+                      alt={`Uber driver profile ${index + 1}`}
+                      className="w-full h-28 object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all rounded-xl flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        iconName="Eye"
+                        iconSize={14}
+                        className="h-8 text-white bg-white/20 hover:bg-white/30 border-0"
+                        onClick={() => window.open(photoUrl, "_blank")}
+                      >
+                        View
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        iconName="Trash2"
+                        iconSize={14}
+                        className="h-8 text-white bg-destructive/80 hover:bg-destructive border-0"
+                        onClick={async () => {
+                          if (window.confirm(`Delete Uber driver photo ${index + 1}?`)) {
+                            try {
+                              const updatedPhotos = owner.uberDriverPhotos.filter((_, i) => i !== index);
+                              const payload = buildOwnerUpdatePayload({
+                                uberDriverPhotos: updatedPhotos,
+                                existingUberPhotos: updatedPhotos,
+                              });
+                              const updatedOwner = await updateTVPOwner(owner.id, payload);
+                              setEditData(updatedOwner);
+                              onUpdate(updatedOwner);
+                            } catch (err) {
+                              console.error("Failed to delete photo:", err);
+                              alert("Failed to delete photo: " + (err.message || "Unknown error"));
+                            }
                           }
-                        }
-                      }}
-                    >
-                      Delete
-                    </Button>
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-6 border border-dashed border-border rounded-lg">
-              <Icon
-                name="Image"
-                size={24}
-                className="text-muted-foreground mx-auto mb-2"
-              />
-              <p className="text-sm text-muted-foreground">
-                No Uber driver photos uploaded
-              </p>
-            </div>
-          )}
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 rounded-xl border-2 border-dashed border-border/80 bg-muted/10">
+                <Icon name="Image" size={36} className="text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm font-medium text-foreground">No Uber driver photos uploaded</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 
   const renderBillsTab = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-foreground">Bill History</h3>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="rounded-2xl border border-border/80 bg-card shadow-sm p-4 flex items-center justify-between gap-4">
+        <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+          <span className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+            <Icon name="Receipt" size={18} className="text-primary" />
+          </span>
+          Bill History
+        </h3>
         <Button
           variant="outline"
           size="sm"
@@ -1643,210 +1688,191 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
       </div>
 
       {billsLoading ? (
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+        <div className="text-center py-10 rounded-2xl border border-border/80 bg-muted/20">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">Loading bills...</p>
         </div>
       ) : bills.length === 0 ? (
-        <div className="text-center py-8">
-          <Icon
-            name="Receipt"
-            size={32}
-            className="text-muted-foreground mx-auto mb-2"
-          />
-          <p className="text-sm text-muted-foreground">
-            No bills generated yet
-          </p>
+        <div className="text-center py-10 rounded-2xl border-2 border-dashed border-border/80 bg-muted/20">
+          <Icon name="Receipt" size={40} className="text-muted-foreground mx-auto mb-3" />
+          <p className="text-sm font-medium text-foreground">No bills generated yet</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {bills.map((bill) => (
             <div
               key={bill.id}
-              className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/30 transition-colors"
+              className="rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden"
             >
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-1">
-                  <span className="text-sm font-semibold text-foreground">
+              {/* Card header: Invoice ID + status + date */}
+              <div className="p-4 border-b border-border/60 flex flex-wrap items-center justify-between gap-3 bg-muted/10">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-sm font-bold text-foreground truncate">
                     {bill.bill_number}
                   </span>
                   <span
-                    className={`px-2 py-0.5 text-xs rounded-full ${
+                    className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-semibold ${
                       bill.status === "generated"
-                        ? "bg-success/10 text-success"
-                        : "bg-muted text-muted-foreground"
+                        ? "bg-success/15 text-success border border-success/30"
+                        : "bg-muted text-muted-foreground border border-border"
                     }`}
                   >
                     {bill.status}
                   </span>
                 </div>
-                <div className="text-xs text-muted-foreground space-y-2">
-                  <div className="flex flex-wrap gap-1 items-center">
-                    <span>
-                      Vehicle{bill.vehicle_number?.includes(",") ? "s" : ""}:
-                    </span>
-                    {bill.vehicle_number ? (
-                      bill.vehicle_number.split(",").map((vehicle, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium"
-                        >
-                          <Icon name="Car" size={10} className="mr-1" />
-                          {vehicle.trim()}
-                        </span>
-                      ))
-                    ) : (
-                      <span>N/A</span>
-                    )}
-                  </div>
+                <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+                  Generated {new Date(bill.created_at).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
+              </div>
 
-                  {/* Vehicle Breakdown */}
-                  {bill.vehicles_breakdown &&
-                    Array.isArray(bill.vehicles_breakdown) &&
-                    bill.vehicles_breakdown.length > 0 && (
-                      <div className="mt-2 p-3 bg-muted/30 rounded-lg border border-border">
-                        <p className="text-xs font-medium text-foreground mb-2">
-                          Vehicle Breakdown:
-                        </p>
-                        <div className="space-y-2">
-                          {bill.vehicles_breakdown.map((vehicle, idx) => (
+              <div className="p-4 space-y-4">
+                {/* Vehicle row – aligned label + pills */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 shrink-0">
+                    <Icon name="Car" size={14} className="text-primary" />
+                    Vehicle{bill.vehicle_number?.includes(",") ? "s" : ""}:
+                  </span>
+                  {bill.vehicle_number ? (
+                    bill.vehicle_number.split(",").map((v, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs font-semibold border border-primary/20"
+                      >
+                        <Icon name="Car" size={12} className="shrink-0" />
+                        {v.trim()}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-sm text-muted-foreground">N/A</span>
+                  )}
+                </div>
+
+                {/* Vehicle breakdown – grid */}
+                {bill.vehicles_breakdown &&
+                  Array.isArray(bill.vehicles_breakdown) &&
+                  bill.vehicles_breakdown.length > 0 && (
+                    <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
+                      <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                        <Icon name="List" size={14} className="text-primary shrink-0" />
+                        Vehicle breakdown
+                      </p>
+                      <div className="space-y-4">
+                        {bill.vehicles_breakdown.map((vehicle, idx) => {
+                          const rent = Number(
+                            vehicle.vehicleRent ||
+                              vehicle.dailyRent * vehicle.rentalDays ||
+                              0,
+                          );
+                          return (
                             <div
                               key={idx}
-                              className="text-xs space-y-1 pb-2 border-b border-border last:border-0 last:pb-0"
+                              className="pb-4 border-b border-border/60 last:border-0 last:pb-0 last:mb-0"
                             >
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-foreground">
-                                  Vehicle {idx + 1}:{" "}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 text-sm">
+                                <div className="col-span-2 sm:col-span-4 font-semibold text-foreground flex items-center gap-2 mb-2">
+                                  <span className="text-muted-foreground font-normal">Vehicle {idx + 1}:</span>
                                   {vehicle.vehicleNumber || "N/A"}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-3 gap-2 mt-1">
-                                <div>
-                                  <span className="text-muted-foreground">
-                                    Days:
-                                  </span>
-                                  <span className="ml-1 font-medium text-foreground">
-                                    {vehicle.rentalDays || 0}
+                                </div>
+                                <div className="flex items-baseline gap-1.5">
+                                  <span className="text-muted-foreground text-xs">Days</span>
+                                  <span className="font-semibold tabular-nums">{vehicle.rentalDays || 0}</span>
+                                </div>
+                                <div className="flex items-baseline gap-1.5">
+                                  <span className="text-muted-foreground text-xs">Trips</span>
+                                  <span className="font-semibold tabular-nums">{vehicle.trips || 0}</span>
+                                </div>
+                                <div className="flex items-baseline gap-1.5 col-span-2">
+                                  <span className="text-muted-foreground text-xs">Rent</span>
+                                  <span className="font-semibold tabular-nums">
+                                    ₹{Number(vehicle.dailyRent || 0).toFixed(2)} × {vehicle.rentalDays || 0} days
                                   </span>
                                 </div>
-                                <div>
-                                  <span className="text-muted-foreground">
-                                    Trips:
-                                  </span>
-                                  <span className="ml-1 font-medium text-foreground">
-                                    {vehicle.trips || 0}
-                                  </span>
+                                <div className="flex items-baseline gap-1.5 col-span-2 sm:col-span-4">
+                                  <span className="text-muted-foreground text-xs">Rent</span>
+                                  <span className="font-bold text-foreground tabular-nums">₹{rent.toFixed(2)}</span>
                                 </div>
-                                <div>
-                                  <span className="text-muted-foreground">
-                                    Rent:
-                                  </span>
-                                  <span className="ml-1 font-medium text-foreground">
-                                    ₹
-                                    {Number(
-                                      vehicle.vehicleRent ||
-                                        vehicle.dailyRent *
-                                          vehicle.rentalDays ||
-                                        0,
-                                    ).toFixed(2)}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="text-muted-foreground mt-1">
-                                <span>
-                                  ₹{Number(vehicle.dailyRent || 0).toFixed(2)} ×{" "}
-                                  {vehicle.rentalDays || 0} days
-                                </span>
                               </div>
                             </div>
-                          ))}
-                          <div className="pt-2 border-t border-border mt-2">
-                            <div className="flex justify-between items-center">
-                              <span className="font-medium text-foreground">
-                                Total Vehicle Rent:
-                              </span>
-                              <span className="font-semibold text-foreground">
-                                ₹
-                                {bill.vehicles_breakdown
-                                  .reduce(
-                                    (sum, v) =>
-                                      sum +
-                                      Number(
-                                        v.vehicleRent ||
-                                          v.dailyRent * v.rentalDays ||
-                                          0,
-                                      ),
-                                    0,
-                                  )
-                                  .toFixed(2)}
-                              </span>
-                            </div>
-                          </div>
+                          );
+                        })}
+                        <div className="pt-3 mt-1 border-t border-border/80 flex justify-between items-center">
+                          <span className="text-sm font-semibold text-foreground">Total vehicle rent</span>
+                          <span className="text-sm font-bold text-foreground tabular-nums">
+                            ₹
+                            {bill.vehicles_breakdown
+                              .reduce(
+                                (sum, v) =>
+                                  sum +
+                                  Number(
+                                    v.vehicleRent || v.dailyRent * v.rentalDays || 0,
+                                  ),
+                                0,
+                              )
+                              .toFixed(2)}
+                          </span>
                         </div>
                       </div>
-                    )}
-
-                  {(!bill.vehicles_breakdown ||
-                    !Array.isArray(bill.vehicles_breakdown) ||
-                    bill.vehicles_breakdown.length === 0) && (
-                    <p>
-                      {bill.rental_days} days • {bill.trips} trips
-                    </p>
+                    </div>
                   )}
 
-                  <p>
-                    Generated:{" "}
-                    {new Date(bill.created_at).toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
+                {(!bill.vehicles_breakdown ||
+                  !Array.isArray(bill.vehicles_breakdown) ||
+                  bill.vehicles_breakdown.length === 0) && (
+                  <p className="text-sm text-muted-foreground">
+                    {bill.rental_days} days · {bill.trips} trips
                   </p>
-                </div>
-                <div className="mt-2 flex items-center space-x-4 text-sm">
-                  <span className="text-muted-foreground">
-                    Final Amount:{" "}
-                    <span
-                      className={`font-medium ${
-                        bill.current_os >= 0 ? "text-success" : "text-error"
-                      }`}
-                    >
-                      {formatCurrency(bill.current_os)}
-                    </span>
+                )}
+
+                {/* Final amount – highlighted row */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border/60">
+                  <span className="text-sm font-semibold text-muted-foreground">Final amount</span>
+                  <span
+                    className={`text-xl font-bold tabular-nums ${
+                      bill.current_os >= 0 ? "text-success" : "text-error"
+                    }`}
+                  >
+                    {formatCurrency(bill.current_os)}
                   </span>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  iconName="Pencil"
-                  iconPosition="left"
-                  iconSize={14}
-                  onClick={() => handleBillEdit(bill)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  iconName="Download"
-                  iconPosition="left"
-                  iconSize={14}
-                  onClick={() => handleDownloadBill(bill)}
-                >
-                  Download
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  iconName="Trash2"
-                  iconSize={14}
-                  className="text-error"
-                  onClick={() => handleDeleteBill(bill.id)}
-                >
-                  Delete
-                </Button>
+
+                {/* Actions – bottom row, aligned */}
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    iconName="Pencil"
+                    iconPosition="left"
+                    iconSize={14}
+                    onClick={() => handleBillEdit(bill)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    iconName="Download"
+                    iconPosition="left"
+                    iconSize={14}
+                    onClick={() => handleDownloadBill(bill)}
+                  >
+                    Download
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    iconName="Trash2"
+                    iconPosition="left"
+                    iconSize={14}
+                    className="text-destructive border-destructive/50 hover:bg-destructive/10"
+                    onClick={() => handleDeleteBill(bill.id)}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </div>
             </div>
           ))}
@@ -1911,108 +1937,119 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
     ledgerPayments,
     loading,
   ) => (
-    <div className="border border-border rounded-lg p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+    <div className="rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden">
+      <div className="p-4 border-b border-border/60 flex items-center justify-between bg-gradient-to-r from-primary/10 to-primary/5">
+        <h4 className="text-base font-bold text-foreground flex items-center gap-2">
+          <span className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+            <Icon name={ledger === "deposit" ? "Wallet" : "AlertCircle"} size={18} className="text-primary" />
+          </span>
+          {title}
+        </h4>
         <Button
-          variant="outline"
+          variant="default"
           size="sm"
           iconName="Plus"
+          iconPosition="left"
           iconSize={14}
           onClick={() => openAddForm(ledger)}
         >
           Add
         </Button>
       </div>
-      <div className="space-y-3">
-        <div className="bg-muted/30 p-3 rounded-lg">
-          <span className="text-xs text-muted-foreground">Current balance</span>
+      <div className="p-4 space-y-4">
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Current balance</span>
           <div
-            className={`text-xl font-bold ${
+            className={`text-2xl font-bold tabular-nums mt-1 ${
               ledger === "deposit"
                 ? "text-foreground"
                 : (balance ?? 0) > 0
-                  ? "text-error"
-                  : "text-emerald-600 dark:text-emerald-400"
+                  ? "text-destructive"
+                  : "text-success"
             }`}
           >
             {formatCurrency(Math.abs(balance ?? 0))}
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-3">
           {ACCOUNT_OPTIONS.map((acc) => (
             <div
               key={acc.value}
-              className="bg-muted/20 p-2 rounded text-center"
+              className="rounded-xl border border-border/80 bg-muted/20 p-3 text-center hover:bg-muted/30 transition-colors"
             >
-              <div className="text-xs text-muted-foreground truncate">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide truncate">
                 {acc.label}
               </div>
-              <div className="text-sm font-semibold">
+              <div className="text-base font-bold text-foreground tabular-nums mt-1">
                 {formatCurrency(byAccount?.[acc.value] ?? 0)}
               </div>
             </div>
           ))}
         </div>
         <div>
-          <div className="text-xs font-medium text-muted-foreground mb-2">
-            History
+          <div className="flex items-center gap-2 mb-3">
+            <Icon name="History" size={16} className="text-primary shrink-0" />
+            <span className="text-sm font-bold text-foreground">History</span>
           </div>
           {loading ? (
-            <div className="py-4 text-center">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto" />
+            <div className="py-6 text-center rounded-xl bg-muted/20">
+              <div className="animate-spin rounded-full h-7 w-7 border-2 border-primary border-t-transparent mx-auto" />
             </div>
           ) : ledgerPayments.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No transactions yet</p>
+            <div className="text-center py-6 rounded-xl border-2 border-dashed border-border/80 bg-muted/10">
+              <Icon name="Receipt" size={28} className="text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No transactions yet</p>
+            </div>
           ) : (
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {ledgerPayments.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between py-2 border-b border-border/50 last:border-0"
-                >
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {(() => {
-                      const { text, className } = formatTransactionAmount(p.payment_type, p.payment_amount);
-                      return <span className={className}>{text}</span>;
-                    })()}
-                    <span
-                      className={`text-xs px-2 py-1 rounded-md font-medium border ${getTransactionBadgeClass(p.payment_type)}`}
-                    >
-                      {getPaymentTypeLabel(p.payment_type)?.split(" (")[0]}
-                    </span>
-                    {p.account && (
-                      <span className="text-xs text-muted-foreground">
-                        {getAccountLabel(p.account)}
-                      </span>
+            <div className="space-y-2 max-h-52 overflow-y-auto">
+              {ledgerPayments.map((p) => {
+                const { text, className } = formatTransactionAmount(p.payment_type, p.payment_amount);
+                const notes = p.notes ?? p.payment_notes ?? "";
+                return (
+                  <div
+                    key={p.id}
+                    className="rounded-xl border border-border/80 bg-muted/20 p-3 flex items-start justify-between gap-3 hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <span className={`font-bold tabular-nums shrink-0 ${className}`}>{text}</span>
+                        <span
+                          className={`text-xs px-2.5 py-1 rounded-lg font-semibold border ${getTransactionBadgeClass(p.payment_type)}`}
+                        >
+                          {getPaymentTypeLabel(p.payment_type)?.split(" (")[0]}
+                        </span>
+                        {p.account && (
+                          <span className="text-xs text-muted-foreground font-medium">
+                            {getAccountLabel(p.account)}
+                          </span>
+                        )}
+                      </div>
+                      {notes && (
+                        <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2" title={notes}>
+                          {notes}
+                        </p>
+                      )}
+                    </div>
+                    {p.payment_type !== "bill" && (
+                      <div className="flex gap-1 shrink-0">
+                        <Button variant="outline" size="sm" iconName="Pencil" iconSize={12} onClick={() => handleEditPayment(p)}>
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          iconName="Trash2"
+                          iconSize={12}
+                          className="text-destructive border-destructive/50 hover:bg-destructive/10"
+                          onClick={() => handleDeletePayment(p.id)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
                     )}
                   </div>
-                  {/* eslint-disable-next-line no-nested-ternary */}
-                  {p.payment_type !== "bill" && (
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        iconName="Pencil"
-                        iconSize={12}
-                        onClick={() => handleEditPayment(p)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        iconName="Trash2"
-                        iconSize={12}
-                        className="text-error"
-                        onClick={() => handleDeletePayment(p.id)}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -2026,20 +2063,20 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
   ];
 
   const renderPaymentsTab = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-1 p-1 bg-muted/50 rounded-lg">
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-border/80 bg-card shadow-sm p-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-1 p-1 rounded-xl bg-muted/30 border border-border/60">
           {paymentsSubTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setPaymentsSubTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all ${
                 paymentsSubTab === tab.id
-                  ? "bg-card text-primary shadow-sm border border-border"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
               }`}
             >
-              <Icon name={tab.icon} size={16} />
+              <Icon name={tab.icon} size={16} className="shrink-0" />
               <span>{tab.label}</span>
             </button>
           ))}
@@ -2057,7 +2094,7 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
         </Button>
       </div>
 
-      <div className="mt-4">
+      <div>
         {paymentsSubTab === "deposit" &&
           renderLedgerSection(
             "Deposit Transaction",

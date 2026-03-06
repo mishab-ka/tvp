@@ -23,46 +23,45 @@ const ProfileHeader = ({ owner, onStatusChange, onEdit }) => {
   };
 
   return (
-    <div className="sticky top-0 z-50 bg-surface border-b border-border">
-      <div className="px-6 py-4">
-        <div className="flex items-center justify-between">
+    <div className="sticky top-0 z-50 bg-surface border-b border-border shadow-sm">
+      <div className="px-6 py-5">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           {/* Left Section - Owner Info */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center gap-4 min-w-0">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => navigate('/tvp-owners-management')}
               iconName="ArrowLeft"
               iconSize={20}
+              className="shrink-0"
             >
               <span className="sr-only">Back to TVP Owners</span>
             </Button>
-            
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center shrink-0">
                 <span className="text-lg font-semibold text-primary-foreground">
                   {owner?.name?.split(' ')?.map(n => n?.[0])?.join('')}
                 </span>
               </div>
-              
-              <div>
-                <div className="flex items-center space-x-3">
-                  <h1 className="text-2xl font-semibold text-foreground">{owner?.name}</h1>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(owner?.status)}`}>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-xl font-semibold text-foreground truncate">{owner?.name}</h1>
+                  <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(owner?.status)}`}>
                     {owner?.status?.charAt(0)?.toUpperCase() + owner?.status?.slice(1)}
                   </span>
                 </div>
-                <div className="flex items-center space-x-4 text-sm text-muted-foreground mt-1">
-                  <span className="flex items-center">
-                    <Icon name="Hash" size={14} className="mr-1" />
+                <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1.5 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Icon name="Hash" size={14} className="shrink-0 text-muted-foreground" />
                     {owner?.id}
                   </span>
-                  <span className="flex items-center">
-                    <Icon name="Phone" size={14} className="mr-1" />
+                  <span className="inline-flex items-center gap-1.5">
+                    <Icon name="Phone" size={14} className="shrink-0 text-muted-foreground" />
                     {owner?.phone}
                   </span>
-                  <span className="flex items-center">
-                    <Icon name="Mail" size={14} className="mr-1" />
+                  <span className="inline-flex items-center gap-1.5">
+                    <Icon name="Mail" size={14} className="shrink-0 text-muted-foreground" />
                     {owner?.email}
                   </span>
                 </div>
@@ -71,7 +70,7 @@ const ProfileHeader = ({ owner, onStatusChange, onEdit }) => {
           </div>
 
           {/* Right Section - Actions */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -95,45 +94,43 @@ const ProfileHeader = ({ owner, onStatusChange, onEdit }) => {
               </Button>
               
               {showActions && (
-                <div className="absolute right-0 top-full mt-1 w-48 bg-popover border border-border rounded-md modal-shadow z-200">
-                  <div className="py-1">
-                    <button
-                      onClick={() => handleStatusChange('active')}
-                      className="flex items-center w-full px-3 py-2 text-sm text-popover-foreground hover:bg-muted transition-colors duration-150"
-                    >
-                      <Icon name="CheckCircle" size={16} className="mr-2 text-success" />
-                      Mark Active
-                    </button>
-                    <button
-                      onClick={() => handleStatusChange('inactive')}
-                      className="flex items-center w-full px-3 py-2 text-sm text-popover-foreground hover:bg-muted transition-colors duration-150"
-                    >
-                      <Icon name="XCircle" size={16} className="mr-2 text-error" />
-                      Mark Inactive
-                    </button>
-                    <button
-                      onClick={() => handleStatusChange('suspended')}
-                      className="flex items-center w-full px-3 py-2 text-sm text-popover-foreground hover:bg-muted transition-colors duration-150"
-                    >
-                      <Icon name="Ban" size={16} className="mr-2 text-destructive" />
-                      Suspend
-                    </button>
-                    <div className="border-t border-border my-1"></div>
-                    <button
-                      onClick={() => console.log('Generate report')}
-                      className="flex items-center w-full px-3 py-2 text-sm text-popover-foreground hover:bg-muted transition-colors duration-150"
-                    >
-                      <Icon name="FileText" size={16} className="mr-2" />
-                      Generate Report
-                    </button>
-                    <button
-                      onClick={() => console.log('Export data')}
-                      className="flex items-center w-full px-3 py-2 text-sm text-popover-foreground hover:bg-muted transition-colors duration-150"
-                    >
-                      <Icon name="Download" size={16} className="mr-2" />
-                      Export Data
-                    </button>
-                  </div>
+                <div className="absolute right-0 top-full mt-2 w-48 bg-popover border border-border rounded-lg shadow-lg z-200 py-1">
+                  <button
+                    onClick={() => handleStatusChange('active')}
+                    className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-popover-foreground hover:bg-muted transition-colors"
+                  >
+                    <Icon name="CheckCircle" size={16} className="shrink-0 text-success" />
+                    Mark Active
+                  </button>
+                  <button
+                    onClick={() => handleStatusChange('inactive')}
+                    className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-popover-foreground hover:bg-muted transition-colors"
+                  >
+                    <Icon name="XCircle" size={16} className="shrink-0 text-error" />
+                    Mark Inactive
+                  </button>
+                  <button
+                    onClick={() => handleStatusChange('suspended')}
+                    className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-popover-foreground hover:bg-muted transition-colors"
+                  >
+                    <Icon name="Ban" size={16} className="shrink-0 text-destructive" />
+                    Suspend
+                  </button>
+                  <div className="border-t border-border my-1" />
+                  <button
+                    onClick={() => console.log('Generate report')}
+                    className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-popover-foreground hover:bg-muted transition-colors"
+                  >
+                    <Icon name="FileText" size={16} className="shrink-0 text-muted-foreground" />
+                    Generate Report
+                  </button>
+                  <button
+                    onClick={() => console.log('Export data')}
+                    className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-popover-foreground hover:bg-muted transition-colors"
+                  >
+                    <Icon name="Download" size={16} className="shrink-0 text-muted-foreground" />
+                    Export Data
+                  </button>
                 </div>
               )}
             </div>

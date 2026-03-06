@@ -5,6 +5,11 @@ import Input from "../../../components/ui/Input";
 import Select from "../../../components/ui/Select";
 import { ACCOUNT_OPTIONS, getAccountLabel } from "../../../utils/accounts";
 
+const CARD_CLASS = "bg-card rounded-2xl border border-border/80 shadow-sm overflow-hidden";
+const CARD_PADDING = "p-6";
+const BOX = "rounded-xl border border-border/80 bg-muted/30 p-4";
+const SECTION_TITLE = "flex items-center gap-3 text-xl font-bold text-foreground";
+
 const FinancialsTab = ({
   financialData,
   onTransactionAdd,
@@ -37,8 +42,8 @@ const FinancialsTab = ({
   const amountNum = Number(newTransaction?.amount);
   const isFormValid = Boolean(
     newTransaction?.account &&
-    (editingTransaction ? amountNum >= 0 : amountNum > 0) &&
-    (newTransaction?.description?.trim() ?? ""),
+      (editingTransaction ? amountNum >= 0 : amountNum > 0) &&
+      (newTransaction?.description?.trim() ?? ""),
   );
 
   const handleAddTransaction = () => {
@@ -114,113 +119,119 @@ const FinancialsTab = ({
     return `${prefix}$${amount?.toLocaleString()}`;
   };
 
+  const accountCards = [
+    {
+      key: "letzryd",
+      label: "LetzRyd A/c",
+      icon: "Building2",
+    },
+    {
+      key: "tawaaq_fleet",
+      label: "Tawaaq Fleet A/c",
+      icon: "Car",
+    },
+    {
+      key: "cash_in_hand",
+      label: "Cash in hand",
+      icon: "Wallet",
+    },
+  ];
+
+  const statCards = [
+    {
+      key: "totalDeposits",
+      label: "Deposit",
+      icon: "DollarSign",
+      class: "text-success",
+      value: `$${Number(financialData?.totalDeposits)?.toLocaleString() ?? "0"}`,
+    },
+    {
+      key: "outstandingBalance",
+      label: "Outstanding Balance",
+      icon: "AlertCircle",
+      class: "text-warning",
+      value: `$${Number(financialData?.outstandingBalance)?.toLocaleString() ?? "0"}`,
+    },
+    {
+      key: "rentalDays",
+      label: "Rental Days",
+      icon: "CalendarDays",
+      class: "text-primary",
+      value: String(financialData?.rentalDays ?? 0),
+    },
+    {
+      key: "availableBalance",
+      label: "Available Balance",
+      icon: "Wallet",
+      class: "text-foreground",
+      value: `$${Number(financialData?.availableBalance)?.toLocaleString() ?? "0"}`,
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Account totals (total collected per account) */}
-      <div>
-        <h3 className="text-sm font-medium text-foreground mb-3">
-          Amount collected by account
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-card rounded-lg border border-border p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <Icon name="Building2" size={16} className="text-primary" />
-              <span className="text-sm font-medium text-card-foreground">
-                LetzRyd A/c
-              </span>
-            </div>
-            <div className="text-2xl font-bold text-foreground">
-              ${(totalCollectedByAccount?.letzryd ?? 0)?.toLocaleString()}
-            </div>
+    <div className="space-y-6 max-w-6xl">
+      {/* Key statistics */}
+      <div className={CARD_CLASS}>
+        <div className={`${CARD_PADDING} border-b border-border/60`}>
+          <h2 className={SECTION_TITLE}>
+            <span className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Icon name="BarChart3" size={22} className="text-primary" />
+            </span>
+            Financial Overview
+          </h2>
+        </div>
+        <div className={CARD_PADDING}>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {statCards.map(({ key, label, icon, class: colorClass, value }) => (
+              <div key={key} className={`${BOX} border-border/80`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Icon name={icon} size={20} className={`shrink-0 ${colorClass}`} />
+                  <span className="text-sm font-bold text-muted-foreground uppercase tracking-wide">
+                    {label}
+                  </span>
+                </div>
+                <div className={`text-2xl font-bold tabular-nums ${colorClass}`}>
+                  {value}
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="bg-card rounded-lg border border-border p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <Icon name="Car" size={16} className="text-primary" />
-              <span className="text-sm font-medium text-card-foreground">
-                Tawaaq Fleet A/c
-              </span>
-            </div>
-            <div className="text-2xl font-bold text-foreground">
-              ${(totalCollectedByAccount?.tawaaq_fleet ?? 0)?.toLocaleString()}
-            </div>
-          </div>
-          <div className="bg-card rounded-lg border border-border p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <Icon name="Wallet" size={16} className="text-primary" />
-              <span className="text-sm font-medium text-card-foreground">
-                Cash In hand
-              </span>
-            </div>
-            <div className="text-2xl font-bold text-foreground">
-              ${(totalCollectedByAccount?.cash_in_hand ?? 0)?.toLocaleString()}
-            </div>
+          <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-3">
+            Amount collected by account
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {accountCards.map(({ key, label, icon }) => (
+              <div key={key} className={`${BOX} flex items-center gap-3`}>
+                <span className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <Icon name={icon} size={22} className="text-primary" />
+                </span>
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    {label}
+                  </div>
+                  <div className="text-xl font-bold text-foreground tabular-nums">
+                    ${(totalCollectedByAccount?.[key] ?? 0)?.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Financial Summary Cards */}
-      <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
-        <div className="bg-card rounded-lg border border-border p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <Icon name="DollarSign" size={16} className="text-success" />
-            <span className="text-sm font-medium text-card-foreground">
-              Total Deposits
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-success">
-            ${financialData?.totalDeposits?.toLocaleString()}
-          </div>
-        </div>
-
-        <div className="bg-card rounded-lg border border-border p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <Icon name="AlertCircle" size={16} className="text-warning" />
-            <span className="text-sm font-medium text-card-foreground">
-              Outstanding
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-warning">
-            ${financialData?.outstandingBalance?.toLocaleString()}
-          </div>
-        </div>
-
-        <div className="bg-card rounded-lg border border-border p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <Icon name="TrendingUp" size={16} className="text-primary" />
-            <span className="text-sm font-medium text-card-foreground">
-              Monthly Earnings
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-primary">
-            ${financialData?.monthlyEarnings?.toLocaleString()}
-          </div>
-        </div>
-
-        <div className="bg-card rounded-lg border border-border p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <Icon
-              name="CreditCard"
-              size={16}
-              className="text-muted-foreground"
-            />
-            <span className="text-sm font-medium text-card-foreground">
-              Available Balance
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-foreground">
-            ${financialData?.availableBalance?.toLocaleString()}
-          </div>
-        </div>
-      </div>
-      {/* Transaction Management */}
-      <div className="bg-card rounded-lg border border-border">
-        <div className="p-6 border-b border-border">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-card-foreground">
-              Transaction History
-            </h3>
+      {/* Transactions */}
+      <div className={CARD_CLASS}>
+        <div className={`${CARD_PADDING} border-b border-border/60`}>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h2 className={SECTION_TITLE}>
+              <span className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Icon name="Receipt" size={22} className="text-primary" />
+              </span>
+              Transaction history
+            </h2>
             <Button
               variant="default"
+              size="sm"
               onClick={() => {
                 setNewTransaction(getDefaultTransaction());
                 setShowAddTransaction(true);
@@ -228,23 +239,22 @@ const FinancialsTab = ({
               }}
               iconName="Plus"
               iconPosition="left"
-              iconSize={16}
+              iconSize={14}
             >
-              Add Transaction
+              Add transaction
             </Button>
           </div>
         </div>
 
-        {/* Add/Edit Transaction Form */}
         {(showAddTransaction || editingTransaction) && (
-          <div className="p-6 border-b border-border bg-muted">
-            <h4 className="text-md font-medium text-foreground mb-4">
-              {editingTransaction ? "Edit Transaction" : "Add New Transaction"}
-            </h4>
-
+          <div className={`${CARD_PADDING} bg-muted/30 border-b border-border/60`}>
+            <h3 className="text-sm font-semibold text-foreground mb-4">
+              {editingTransaction ? "Edit transaction" : "New transaction"}
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
+                <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-1.5">
+                  <Icon name="ArrowDownCircle" size={14} className="text-muted-foreground shrink-0" />
                   Type
                 </label>
                 <select
@@ -255,7 +265,7 @@ const FinancialsTab = ({
                       type: e?.target?.value,
                     }))
                   }
-                  className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full h-10 px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   <option value="deposit">Deposit</option>
                   <option value="withdrawal">Withdrawal</option>
@@ -263,7 +273,6 @@ const FinancialsTab = ({
                   <option value="adjustment">Adjustment</option>
                 </select>
               </div>
-
               <Select
                 label="Account"
                 required
@@ -274,7 +283,6 @@ const FinancialsTab = ({
                 }
                 placeholder="Select account"
               />
-
               <Input
                 label="Amount"
                 type="number"
@@ -287,7 +295,6 @@ const FinancialsTab = ({
                 }
                 placeholder="0.00"
               />
-
               <Input
                 label="Date"
                 type="date"
@@ -299,9 +306,14 @@ const FinancialsTab = ({
                   }))
                 }
               />
-
+            </div>
+            <div className="mb-4">
+              <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-1.5">
+                <Icon name="FileText" size={14} className="text-muted-foreground shrink-0" />
+                Description
+              </label>
               <Input
-                label="Description"
+                label=""
                 type="text"
                 value={newTransaction?.description}
                 onChange={(e) =>
@@ -313,10 +325,10 @@ const FinancialsTab = ({
                 placeholder="Transaction description"
               />
             </div>
-
-            <div className="flex justify-end space-x-2">
+            <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => {
                   setShowAddTransaction(false);
                   setEditingTransaction(null);
@@ -327,6 +339,7 @@ const FinancialsTab = ({
               </Button>
               <Button
                 variant="default"
+                size="sm"
                 onClick={
                   editingTransaction
                     ? handleUpdateTransaction
@@ -334,57 +347,59 @@ const FinancialsTab = ({
                 }
                 disabled={!isFormValid}
               >
-                {editingTransaction ? "Update" : "Add"} Transaction
+                {editingTransaction ? "Update" : "Add"} transaction
               </Button>
             </div>
           </div>
         )}
 
-        {/* Transaction List */}
-        <div className="p-6">
-          <div className="space-y-3">
+        <div className={CARD_PADDING}>
+          <div className="space-y-2">
             {financialData?.transactions?.map((transaction) => (
               <div
                 key={transaction?.id}
-                className="flex items-center justify-between p-4 bg-muted rounded-lg"
+                className={`${BOX} flex items-center justify-between gap-4 hover:bg-muted/50 transition-colors`}
               >
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center gap-3 min-w-0">
                   <div
-                    className={`w-10 h-10 rounded-full bg-background flex items-center justify-center ${getTransactionColor(transaction?.type)}`}
+                    className={`w-10 h-10 rounded-lg bg-background flex items-center justify-center shrink-0 border border-border/50 ${getTransactionColor(transaction?.type)}`}
                   >
                     <Icon
                       name={getTransactionIcon(transaction?.type)}
-                      size={16}
+                      size={18}
                     />
                   </div>
-
-                  <div>
-                    <div className="font-medium text-foreground">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm text-foreground">
                       {transaction?.description}
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {transaction?.date} •{" "}
-                      {transaction?.type?.charAt(0)?.toUpperCase() +
-                        transaction?.type?.slice(1)}
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                      <Icon name="Calendar" size={12} className="shrink-0" />
+                      <span>{transaction?.date}</span>
+                      <span>·</span>
+                      <span className="capitalize">{transaction?.type}</span>
                       {transaction?.account && (
-                        <span className="ml-1">
-                          • {getAccountLabel(transaction.account)}
-                        </span>
+                        <>
+                          <span>·</span>
+                          <span>{getAccountLabel(transaction.account)}</span>
+                        </>
                       )}
                     </div>
                   </div>
                 </div>
-
-                <div className="flex items-center space-x-3">
-                  <div
-                    className={`text-lg font-semibold ${getTransactionColor(transaction?.type)}`}
+                <div className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={`text-base font-semibold tabular-nums ${getTransactionColor(transaction?.type)}`}
                   >
-                    {getAmountDisplay(transaction?.type, transaction?.amount)}
-                  </div>
-
+                    {getAmountDisplay(
+                      transaction?.type,
+                      transaction?.amount,
+                    )}
+                  </span>
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="h-8 w-8"
                     onClick={() => handleEditTransaction(transaction)}
                     iconName="Edit"
                     iconSize={14}
@@ -397,20 +412,21 @@ const FinancialsTab = ({
           </div>
 
           {financialData?.transactions?.length === 0 && (
-            <div className="text-center py-8">
+            <div className="text-center py-12 rounded-lg bg-muted/30 border border-dashed border-border">
               <Icon
                 name="Receipt"
-                size={48}
-                className="mx-auto text-muted-foreground mb-4"
+                size={40}
+                className="mx-auto text-muted-foreground mb-3"
               />
-              <h4 className="text-lg font-medium text-foreground mb-2">
+              <h3 className="text-base font-medium text-foreground mb-1">
                 No transactions yet
-              </h4>
-              <p className="text-muted-foreground mb-4">
-                Start by adding the first transaction for this TVP owner.
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
+                Add the first transaction for this driver to see history here.
               </p>
               <Button
                 variant="default"
+                size="sm"
                 onClick={() => {
                   setNewTransaction(getDefaultTransaction());
                   setShowAddTransaction(true);
@@ -418,60 +434,102 @@ const FinancialsTab = ({
                 }}
                 iconName="Plus"
                 iconPosition="left"
-                iconSize={16}
+                iconSize={14}
               >
-                Add First Transaction
+                Add first transaction
               </Button>
             </div>
           )}
         </div>
       </div>
-      {/* Payment Schedule */}
-      <div className="bg-card rounded-lg border border-border p-6">
-        <h3 className="text-lg font-semibold text-card-foreground mb-4">
-          Upcoming Payments
-        </h3>
 
-        <div className="space-y-3">
-          {financialData?.upcomingPayments?.map((payment) => (
-            <div
-              key={payment?.id}
-              className="flex items-center justify-between p-3 bg-muted rounded-lg"
-            >
-              <div className="flex items-center space-x-3">
-                <Icon
-                  name="Calendar"
-                  size={16}
-                  className="text-muted-foreground"
-                />
-                <div>
-                  <div className="font-medium text-foreground">
-                    {payment?.description}
+      {/* Bills & Invoices */}
+      <div className={CARD_CLASS}>
+        <div className={`${CARD_PADDING} border-b border-border/60`}>
+          <h2 className={SECTION_TITLE}>
+            <span className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Icon name="Receipt" size={22} className="text-primary" />
+            </span>
+            Bills & Invoices
+          </h2>
+        </div>
+        <div className={CARD_PADDING}>
+          <div className="space-y-4">
+            {financialData?.upcomingPayments?.map((payment) => (
+              <div
+                key={payment?.id}
+                className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm"
+              >
+                <div className="p-5 border-b border-border/60 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <Icon name="FileText" size={24} className="text-primary" />
+                    </span>
+                    <div>
+                      <h3 className="text-lg font-bold text-foreground">
+                        {payment?.description}
+                      </h3>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
+                        <Icon name="Calendar" size={14} className="shrink-0" />
+                        Due {payment?.dueDate}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    Due: {payment?.dueDate}
+                  <span
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase ${
+                      payment?.status === "pending"
+                        ? "bg-warning/15 text-warning border border-warning/30"
+                        : payment?.status === "overdue"
+                          ? "bg-destructive/15 text-destructive border border-destructive/30"
+                          : "bg-success/15 text-success border border-success/30"
+                    }`}
+                  >
+                    {payment?.status}
+                  </span>
+                </div>
+                <div className="p-5 bg-muted/20">
+                  <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold text-muted-foreground">
+                        Rent breakdown
+                      </div>
+                      <div className="text-sm text-foreground">
+                        {payment?.description} — ${payment?.amount?.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-0.5">
+                        Final amount
+                      </div>
+                      <div className="text-2xl font-bold text-foreground tabular-nums">
+                        ${payment?.amount?.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-3 border-t border-border/60">
+                    <Button variant="outline" size="sm" iconName="Eye" iconPosition="left" iconSize={14}>
+                      View
+                    </Button>
+                    <Button variant="outline" size="sm" iconName="Download" iconPosition="left" iconSize={14}>
+                      Download
+                    </Button>
+                    {payment?.status === "pending" && (
+                      <Button variant="default" size="sm" iconName="CreditCard" iconPosition="left" iconSize={14}>
+                        Mark paid
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
-
-              <div className="flex items-center space-x-3">
-                <span className="font-semibold text-foreground">
-                  ${payment?.amount?.toLocaleString()}
-                </span>
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    payment?.status === "pending"
-                      ? "bg-warning text-warning-foreground"
-                      : payment?.status === "overdue"
-                        ? "bg-error text-error-foreground"
-                        : "bg-success text-success-foreground"
-                  }`}
-                >
-                  {payment?.status}
-                </span>
-              </div>
+            ))}
+          </div>
+          {!financialData?.upcomingPayments?.length && (
+            <div className="text-center py-12 rounded-2xl bg-muted/20 border border-dashed border-border/80">
+              <Icon name="CalendarCheck" size={40} className="mx-auto text-muted-foreground mb-3" />
+              <p className="text-base font-semibold text-foreground mb-1">No bills</p>
+              <p className="text-sm text-muted-foreground">Upcoming invoices will appear here.</p>
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>

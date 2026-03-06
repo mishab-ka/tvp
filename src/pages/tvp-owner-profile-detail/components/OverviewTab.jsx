@@ -4,6 +4,13 @@ import Button from "../../../components/ui/Button";
 import Input from "../../../components/ui/Input";
 import { Checkbox } from "../../../components/ui/Checkbox";
 
+const CARD =
+  "bg-card rounded-2xl border border-border/80 shadow-sm overflow-hidden";
+const PADDING = "p-6";
+const SECTION_TITLE =
+  "flex items-center gap-3 text-xl font-bold text-foreground";
+const BOX = "rounded-xl border border-border/80 bg-muted/30 p-4";
+
 const OverviewTab = ({ owner, onUpdate, onIncludingRoomChange }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -17,10 +24,7 @@ const OverviewTab = ({ owner, onUpdate, onIncludingRoomChange }) => {
   });
 
   const handleInputChange = (field, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSave = () => {
@@ -41,226 +45,222 @@ const OverviewTab = ({ owner, onUpdate, onIncludingRoomChange }) => {
     setIsEditing(false);
   };
 
+  const contactFields = [
+    { key: "name", label: "Full Name", icon: "User" },
+    { key: "email", label: "Email Address", icon: "Mail" },
+    { key: "phone", label: "Phone Number", icon: "Phone" },
+    { key: "address", label: "Address", icon: "MapPin" },
+    { key: "emergencyContact", label: "Emergency Contact", icon: "PhoneCall" },
+    { key: "licenseNumber", label: "License Number", icon: "CreditCard" },
+    { key: "joinDate", label: "Join Date", icon: "Calendar" },
+  ];
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="space-y-6 max-w-6xl">
       {/* Contact Information */}
-      <div className="bg-card rounded-lg border border-border p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-card-foreground">
-            Contact Information
-          </h3>
-          {!isEditing ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsEditing(true)}
-              iconName="Edit"
-              iconSize={16}
-            >
-              Edit
-            </Button>
-          ) : (
-            <div className="flex space-x-2">
-              <Button variant="outline" size="sm" onClick={handleCancel}>
-                Cancel
-              </Button>
-              <Button variant="default" size="sm" onClick={handleSave}>
-                Save
-              </Button>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-4">
-          <Input
-            label="Full Name"
-            type="text"
-            value={formData?.name}
-            onChange={(e) => handleInputChange("name", e?.target?.value)}
-            disabled={!isEditing}
-          />
-
-          <Input
-            label="Email Address"
-            type="email"
-            value={formData?.email}
-            onChange={(e) => handleInputChange("email", e?.target?.value)}
-            disabled={!isEditing}
-          />
-
-          <Input
-            label="Phone Number"
-            type="tel"
-            value={formData?.phone}
-            onChange={(e) => handleInputChange("phone", e?.target?.value)}
-            disabled={!isEditing}
-          />
-
-          <Input
-            label="Address"
-            type="text"
-            value={formData?.address}
-            onChange={(e) => handleInputChange("address", e?.target?.value)}
-            disabled={!isEditing}
-          />
-
-          <Input
-            label="Emergency Contact"
-            type="tel"
-            value={formData?.emergencyContact}
-            onChange={(e) =>
-              handleInputChange("emergencyContact", e?.target?.value)
-            }
-            disabled={!isEditing}
-          />
-
-          <Input
-            label="License Number"
-            type="text"
-            value={formData?.licenseNumber}
-            onChange={(e) =>
-              handleInputChange("licenseNumber", e?.target?.value)
-            }
-            disabled={!isEditing}
-          />
-
-          <Input
-            label="Join Date"
-            type="date"
-            value={formData?.joinDate}
-            onChange={(e) => handleInputChange("joinDate", e?.target?.value)}
-            disabled={!isEditing}
-          />
-        </div>
-      </div>
-      {/* Vehicle Summary & Financial Snapshot */}
-      <div className="space-y-6">
-        {/* Bill options: Including Room */}
-        <div className="bg-card rounded-lg border border-border p-6">
-          <h3 className="text-lg font-semibold text-card-foreground mb-4">
-            Bill options
-          </h3>
-          <Checkbox
-            id="including-room-profile"
-            checked={!!owner?.includingRoom}
-            onCheckedChange={(checked) => onIncludingRoomChange?.(!!checked)}
-            label="Including room — include room rent in bill generation"
-            description="When enabled, room rent is added when generating bills for this driver."
-          />
-        </div>
-
-        {/* Vehicle Summary */}
-        <div className="bg-card rounded-lg border border-border p-6">
-          <h3 className="text-lg font-semibold text-card-foreground mb-4">
-            Vehicle Summary
-          </h3>
-
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="text-center p-4 bg-muted rounded-lg">
-              <div className="text-2xl font-bold text-foreground">
-                {owner?.vehicles?.length}
-              </div>
-              <div className="text-sm text-muted-foreground">
-                Total Vehicles
-              </div>
-            </div>
-            <div className="text-center p-4 bg-muted rounded-lg">
-              <div className="text-2xl font-bold text-success">
-                {owner?.vehicles?.filter((v) => v?.status === "active")?.length}
-              </div>
-              <div className="text-sm text-muted-foreground">Active</div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            {owner?.vehicles?.slice(0, 3)?.map((vehicle) => (
-              <div
-                key={vehicle?.id}
-                className="flex items-center justify-between p-3 bg-muted rounded-lg"
+      <div className={CARD}>
+        <div className={`${PADDING} border-b border-border/60`}>
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <h2 className={SECTION_TITLE}>
+              <span className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Icon name="User" size={22} className="text-primary" />
+              </span>
+              Contact Information
+            </h2>
+            {!isEditing ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditing(true)}
+                iconName="Edit"
+                iconSize={14}
               >
-                <div className="flex items-center space-x-3">
-                  <Icon
-                    name="Car"
-                    size={16}
-                    className="text-muted-foreground"
-                  />
-                  <div>
-                    <div className="font-medium text-sm">
-                      {vehicle?.make} {vehicle?.model}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {vehicle?.plateNumber}
-                    </div>
-                  </div>
-                </div>
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    vehicle?.status === "active"
-                      ? "bg-success text-success-foreground"
-                      : "bg-error text-error-foreground"
-                  }`}
-                >
-                  {vehicle?.status}
-                </span>
-              </div>
-            ))}
-
-            {owner?.vehicles?.length > 3 && (
-              <Button variant="ghost" size="sm" fullWidth className="mt-2">
-                View All {owner?.vehicles?.length} Vehicles
+                Edit
               </Button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleCancel}>
+                  Cancel
+                </Button>
+                <Button variant="default" size="sm" onClick={handleSave}>
+                  Save
+                </Button>
+              </div>
             )}
           </div>
         </div>
-
-        {/* Financial Snapshot */}
-        <div className="bg-card rounded-lg border border-border p-6">
-          <h3 className="text-lg font-semibold text-card-foreground mb-4">
-            Financial Snapshot
-          </h3>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-              <div className="flex items-center space-x-2">
-                <Icon name="DollarSign" size={16} className="text-success" />
-                <span className="text-sm font-medium">Total Deposits</span>
-              </div>
-              <span className="font-semibold text-success">
-                ${owner?.totalDeposits?.toLocaleString()}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-              <div className="flex items-center space-x-2">
-                <Icon name="AlertCircle" size={16} className="text-warning" />
-                <span className="text-sm font-medium">Outstanding Balance</span>
-              </div>
-              <span className="font-semibold text-warning">
-                ${owner?.outstandingBalance?.toLocaleString()}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-              <div className="flex items-center space-x-2">
-                <Icon name="TrendingUp" size={16} className="text-primary" />
-                <span className="text-sm font-medium">Monthly Earnings</span>
-              </div>
-              <span className="font-semibold text-primary">
-                ${owner?.monthlyEarnings?.toLocaleString()}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-              <div className="flex items-center space-x-2">
-                <Icon
-                  name="Calendar"
-                  size={16}
-                  className="text-muted-foreground"
+        <div className={PADDING}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {contactFields.map(({ key, label, icon }) => (
+              <div key={key} className={BOX}>
+                <label className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
+                  <Icon name={icon} size={18} className="text-muted-foreground shrink-0" />
+                  {label}
+                </label>
+                <Input
+                  label=""
+                  type={
+                    key === "joinDate"
+                      ? "date"
+                      : key === "email"
+                        ? "email"
+                        : key === "phone" || key === "emergencyContact"
+                          ? "tel"
+                          : "text"
+                  }
+                  value={formData?.[key]}
+                  onChange={(e) => handleInputChange(key, e?.target?.value)}
+                  disabled={!isEditing}
+                  className="bg-background border-border/80"
                 />
-                <span className="text-sm font-medium">Last Payment</span>
               </div>
-              <span className="font-medium">{owner?.lastPaymentDate}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Metrics */}
+        <div className={CARD}>
+          <div className={PADDING}>
+            <h2 className={`${SECTION_TITLE} mb-5`}>
+              <span className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Icon name="BarChart3" size={22} className="text-primary" />
+              </span>
+              Metrics
+            </h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div className={`${BOX} text-center`}>
+                <div className="text-3xl font-bold text-foreground tabular-nums">
+                  {owner?.vehicles?.length ?? 0}
+                </div>
+                <div className="text-sm font-semibold text-muted-foreground mt-1">
+                  Total Vehicles
+                </div>
+              </div>
+              <div className={`${BOX} text-center`}>
+                <div className="text-3xl font-bold text-success tabular-nums">
+                  {owner?.vehicles?.filter((v) => v?.status === "active")?.length ?? 0}
+                </div>
+                <div className="text-sm font-semibold text-muted-foreground mt-1">
+                  Active
+                </div>
+              </div>
             </div>
+            <div className="mt-4 space-y-2">
+              {owner?.vehicles?.slice(0, 3)?.map((vehicle) => (
+                <div
+                  key={vehicle?.id}
+                  className="flex items-center justify-between gap-3 py-3 px-4 rounded-xl border border-border/80 bg-muted/20"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <Icon name="Car" size={20} className="text-primary" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-foreground truncate">
+                        {vehicle?.make} {vehicle?.model}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {vehicle?.plateNumber}
+                      </div>
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold uppercase ${
+                      vehicle?.status === "active"
+                        ? "bg-success/15 text-success"
+                        : "bg-destructive/15 text-destructive"
+                    }`}
+                  >
+                    {vehicle?.status}
+                  </span>
+                </div>
+              ))}
+              {owner?.vehicles?.length > 3 && (
+                <Button variant="ghost" size="sm" fullWidth className="mt-2">
+                  View all {owner?.vehicles?.length} vehicles
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Financial Information */}
+        <div className={CARD}>
+          <div className={PADDING}>
+            <h2 className={`${SECTION_TITLE} mb-5`}>
+              <span className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Icon name="DollarSign" size={22} className="text-primary" />
+              </span>
+              Financial Information
+            </h2>
+            <div className="space-y-3">
+              {[
+                {
+                  icon: "DollarSign",
+                  label: "Total deposits",
+                  value: owner?.totalDeposits,
+                  valueClass: "text-success font-bold",
+                  format: (v) => `$${Number(v)?.toLocaleString() ?? "0"}`,
+                },
+                {
+                  icon: "AlertCircle",
+                  label: "Outstanding balance",
+                  value: owner?.outstandingBalance,
+                  valueClass: "text-warning font-bold",
+                  format: (v) => `$${Number(v)?.toLocaleString() ?? "0"}`,
+                },
+                {
+                  icon: "TrendingUp",
+                  label: "Monthly earnings",
+                  value: owner?.monthlyEarnings,
+                  valueClass: "text-primary font-bold",
+                  format: (v) => `$${Number(v)?.toLocaleString() ?? "0"}`,
+                },
+                {
+                  icon: "Calendar",
+                  label: "Last payment",
+                  value: owner?.lastPaymentDate,
+                  valueClass: "text-foreground font-semibold",
+                  format: (v) => v ?? "—",
+                },
+              ].map(({ icon, label, value, valueClass, format }) => (
+                <div
+                  key={label}
+                  className={`${BOX} flex items-center justify-between gap-4`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Icon name={icon} size={20} className="text-muted-foreground shrink-0" />
+                    <span className="font-semibold text-foreground">{label}</span>
+                  </div>
+                  <span className={`text-lg tabular-nums shrink-0 ${valueClass}`}>
+                    {format(value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className={CARD}>
+        <div className={PADDING}>
+          <h2 className={`${SECTION_TITLE} mb-5`}>
+            <span className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Icon name="Zap" size={22} className="text-primary" />
+            </span>
+            Quick Actions
+          </h2>
+          <div className={`${BOX}`}>
+            <Checkbox
+              id="including-room-profile"
+              checked={!!owner?.includingRoom}
+              onCheckedChange={(checked) => onIncludingRoomChange?.(!!checked)}
+              label="Including room — include room rent in bill generation"
+              description="When enabled, room rent is added when generating bills for this driver."
+            />
           </div>
         </div>
       </div>
