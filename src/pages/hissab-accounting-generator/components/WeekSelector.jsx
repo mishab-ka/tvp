@@ -121,6 +121,7 @@ const WeekSelector = ({ value, onChange }) => {
           </p>
         </div>
         <Button
+          type="button"
           variant="outline"
           size="sm"
           onClick={handleToday}
@@ -133,6 +134,7 @@ const WeekSelector = ({ value, onChange }) => {
 
       <div className="flex items-center justify-between p-4 bg-muted/20 rounded-lg border border-border">
         <Button
+          type="button"
           variant="ghost"
           size="icon"
           onClick={handlePreviousWeek}
@@ -149,6 +151,7 @@ const WeekSelector = ({ value, onChange }) => {
         </div>
 
         <Button
+          type="button"
           variant="ghost"
           size="icon"
           onClick={handleNextWeek}

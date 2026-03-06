@@ -47,6 +47,7 @@ const OwnerFormModal = ({
     category: "single_driver",
     depositAmount: "",
     outstandingBalance: "",
+    penaltyAmount: "",
     paymentDelayDays: 0,
     roomDeposit: "",
     prePaidRentAmount: "",
@@ -85,6 +86,27 @@ const OwnerFormModal = ({
   };
 
   const formattedMode = mode === "edit" ? "Edit TVP Owner" : "Add TVP Owner";
+
+  // Include driver's current vehicles in options so they show as selected in edit mode
+  // (they may not be in activeVehicles if inactive or from another source)
+  const vehicleOptionsWithExisting = useMemo(() => {
+    const fromApi = activeVehicles || [];
+    const existing =
+      (initialData?.vehicleNumbers && initialData.vehicleNumbers.length > 0
+        ? initialData.vehicleNumbers
+        : initialData?.vehicles?.map(
+            (v) => v?.plateNumber || v?.car_number || v?.carNumber || v
+          )) || [];
+    const existingStrings = existing.filter((v) => v && String(v).trim());
+    const notInApi = existingStrings.filter(
+      (v) => !fromApi.some((o) => String(o?.value).trim() === String(v).trim())
+    );
+    const extra = notInApi.map((v) => ({
+      value: String(v).trim(),
+      label: String(v).trim(),
+    }));
+    return [...fromApi, ...extra];
+  }, [activeVehicles, initialData?.vehicleNumbers, initialData?.vehicles]);
 
   const computedPerformance = useMemo(() => {
     const delay = Number(formData.paymentDelayDays) || 0;
@@ -150,6 +172,10 @@ const OwnerFormModal = ({
           typeof initialData?.outstandingBalance === "number"
             ? initialData.outstandingBalance.toString()
             : initialData?.outstandingBalance || "",
+        penaltyAmount:
+          typeof initialData?.penaltyAmount === "number"
+            ? initialData.penaltyAmount.toString()
+            : initialData?.penaltyAmount ?? "",
         paymentDelayDays: initialData?.paymentDelayDays || 0,
         roomDeposit:
           typeof initialData?.roomDeposit === "number"
@@ -197,6 +223,7 @@ const OwnerFormModal = ({
         category: "single_driver",
         depositAmount: "",
         outstandingBalance: "",
+        penaltyAmount: "",
         paymentDelayDays: 0,
         roomDeposit: "",
         prePaidRentAmount: "",
@@ -281,6 +308,7 @@ const OwnerFormModal = ({
       ...formData,
       depositAmount: parseFloat(formData.depositAmount) || 0,
       outstandingBalance: parseFloat(formData.outstandingBalance) || 0,
+      penaltyAmount: parseFloat(formData.penaltyAmount) || 0,
       paymentDelayDays: Number(formData.paymentDelayDays) || 0,
       roomDeposit: parseFloat(formData.roomDeposit) || 0,
       prePaidRentAmount: parseFloat(formData.prePaidRentAmount) || 0,
@@ -432,6 +460,17 @@ const OwnerFormModal = ({
                   handleFieldChange("paymentDelayDays", e?.target?.value)
                 }
               />
+              <Input
+                label="Penalty (INR)"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.penaltyAmount}
+                description="Pending penalty to be added to next bill"
+                onChange={(e) =>
+                  handleFieldChange("penaltyAmount", e?.target?.value)
+                }
+              />
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
@@ -510,7 +549,7 @@ const OwnerFormModal = ({
               </div>
               {vehicleNumbers.map((value, index) => {
                 // Filter out already selected vehicles from this field's options
-                const availableOptions = activeVehicles.filter(
+                const availableOptions = vehicleOptionsWithExisting.filter(
                   (vehicle) => !vehicleNumbers.some((v, i) => i !== index && v === vehicle.value)
                 );
                 

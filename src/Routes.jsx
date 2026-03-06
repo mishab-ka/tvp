@@ -16,6 +16,7 @@ import TVPOwnerDashboard from "./pages/tvp-owner-dashboard";
 import VehicleManagement from "./pages/vehicle-management";
 import Dashboard from "./pages/dashboard";
 import BulkBillGenerator from "./pages/bulk-bill-generator";
+import VehiclePerformanceSheet from "./pages/vehicle-performance-sheet";
 import AdminSettings from "./pages/admin-settings";
 
 const Routes = () => {
@@ -119,6 +120,15 @@ const Routes = () => {
             element={
               <ProtectedRoute requiredPermissions={["tvp_management"]}>
                 <BulkBillGenerator />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/vehicle-performance-sheet"
+            element={
+              <ProtectedRoute requiredPermissions={["financial_reports"]}>
+                <VehiclePerformanceSheet />
               </ProtectedRoute>
             }
           />

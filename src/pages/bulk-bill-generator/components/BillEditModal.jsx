@@ -20,8 +20,11 @@ const BillEditModal = ({ bill, vehicles, onClose, onSave, loading }) => {
     rtoFine: "",
     accident: "",
     deadKm: "",
+    roomRent: "",
   });
   const [errors, setErrors] = useState({});
+
+  const isGeneratedBill = bill?.status === "generated";
 
   // Initialize form data from bill
   useEffect(() => {
@@ -42,6 +45,7 @@ const BillEditModal = ({ bill, vehicles, onClose, onSave, loading }) => {
         rtoFine: bill.rto_fine?.toString() || "",
         accident: bill.accident?.toString() || "",
         deadKm: bill.dead_km?.toString() || "",
+        roomRent: bill.room_rent?.toString() ?? "",
       });
     }
   }, [bill]);
@@ -67,7 +71,7 @@ const BillEditModal = ({ bill, vehicles, onClose, onSave, loading }) => {
     return earnings - cashCollect;
   }, [formData.totalEarnings, formData.totalCashCollect]);
 
-  // Calculate Current OS
+  // Calculate Current OS (includes room rent if set)
   const currentOS = useMemo(() => {
     const netRent = netWeeklyRent;
     const tollAmount = parseFloat(formData.toll) || 0;
@@ -78,6 +82,7 @@ const BillEditModal = ({ bill, vehicles, onClose, onSave, loading }) => {
     const rtoFine = parseFloat(formData.rtoFine) || 0;
     const accident = parseFloat(formData.accident) || 0;
     const deadKm = parseFloat(formData.deadKm) || 0;
+    const roomRent = parseFloat(formData.roomRent) || 0;
 
     return (
       netRent -
@@ -88,7 +93,8 @@ const BillEditModal = ({ bill, vehicles, onClose, onSave, loading }) => {
       tds +
       rtoFine +
       accident +
-      deadKm
+      deadKm +
+      roomRent
     );
   }, [
     netWeeklyRent,
@@ -100,6 +106,7 @@ const BillEditModal = ({ bill, vehicles, onClose, onSave, loading }) => {
     formData.rtoFine,
     formData.accident,
     formData.deadKm,
+    formData.roomRent,
   ]);
 
   const handleSubmit = async (e) => {
@@ -138,6 +145,7 @@ const BillEditModal = ({ bill, vehicles, onClose, onSave, loading }) => {
       rtoFine: parseFloat(formData.rtoFine) || 0,
       accident: parseFloat(formData.accident) || 0,
       deadKm: parseFloat(formData.deadKm) || 0,
+      roomRent: parseFloat(formData.roomRent) || 0,
       currentOS: currentOS,
     };
 
@@ -149,7 +157,7 @@ const BillEditModal = ({ bill, vehicles, onClose, onSave, loading }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/60 px-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 px-4">
       <div
         className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-background rounded-lg border border-border shadow-xl"
         onClick={(e) => e.stopPropagation()}
@@ -158,10 +166,12 @@ const BillEditModal = ({ bill, vehicles, onClose, onSave, loading }) => {
         <div className="sticky top-0 bg-background border-b border-border p-6 flex items-center justify-between z-10">
           <div>
             <h2 className="text-xl font-semibold text-foreground">
-              Edit Draft Bill
+              {isGeneratedBill ? "Edit Bill" : "Edit Draft Bill"}
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Review and edit bill details before finalizing
+              {isGeneratedBill
+                ? "Update bill details. Changes will update outstanding balance."
+                : "Review and edit bill details before finalizing"}
             </p>
           </div>
           <Button
@@ -343,6 +353,17 @@ const BillEditModal = ({ bill, vehicles, onClose, onSave, loading }) => {
               value={formData.deadKm}
               onChange={(e) =>
                 setFormData({ ...formData, deadKm: e.target.value })
+              }
+            />
+
+            <Input
+              label="Room Rent (INR)"
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.roomRent}
+              onChange={(e) =>
+                setFormData({ ...formData, roomRent: e.target.value })
               }
             />
           </div>
