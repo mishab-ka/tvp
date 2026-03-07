@@ -3,7 +3,7 @@ import Button from "../../../components/ui/Button";
 import Input from "../../../components/ui/Input";
 import Icon from "../../../components/AppIcon";
 import WeekSelector, { calculatePreviousWeek } from "../../hissab-accounting-generator/components/WeekSelector";
-import { createDriverPayment } from "../../../lib/tvpManagementAPI";
+import { addDriverPenaltyAmount } from "../../../lib/tvpManagementAPI";
 
 const AddPenaltyModal = ({
   isOpen,
@@ -40,15 +40,7 @@ const AddPenaltyModal = ({
     setError("");
     setSubmittingLocal(true);
     try {
-      await createDriverPayment({
-        driverId: driver.id,
-        paymentType: "accident_due",
-        paymentAmount: num,
-        paymentDate: weekRange.weekEnd,
-        weekStart: weekRange.weekStart,
-        weekEnd: weekRange.weekEnd,
-        notes: notes.trim() || "Accident penalty (week-based)",
-      });
+      await addDriverPenaltyAmount(driver.id, num);
       onSubmit?.();
       onClose();
     } catch (err) {

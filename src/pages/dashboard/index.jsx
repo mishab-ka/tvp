@@ -100,11 +100,15 @@ const Dashboard = () => {
     return { dateFrom: null, dateTo: null, rangeLabel: null };
   }, [financialDateMode, financialWeek, financialCustomApplied]);
 
-  // Balance to collect: when week selected, use week-based balance; else all-time live outstanding
+  // When a period is selected, show only that period's amounts (no all-time fallback)
   const balanceToCollect =
-    dateFrom && dateTo && stats.bills.weekBalanceToCollect != null
-      ? stats.bills.weekBalanceToCollect
-      : stats.bills.liveOutstanding ?? stats.bills.totalOutstandingAmount ?? 0;
+    dateFrom && dateTo
+      ? (stats.bills.weekBalanceToCollect ?? 0)
+      : 0;
+  const totalOutstandingDisplay =
+    dateFrom && dateTo
+      ? (stats.bills.totalOutstandingForWeek ?? stats.bills.totalOutstandingAmount ?? 0)
+      : 0;
 
   const loadFinancialSummary = useCallback(
     async (from, to) => {
@@ -198,9 +202,12 @@ const Dashboard = () => {
     loadStats();
   }, [isAuthenticated, hasPermission]);
 
+  // Only load financial summary when a period is selected (week or custom) — summary is always for that filter
   useEffect(() => {
     if (!hasPermission(["tvp_management", "financial_reports"])) return;
-    loadFinancialSummary(dateFrom, dateTo);
+    if (dateFrom && dateTo) {
+      loadFinancialSummary(dateFrom, dateTo);
+    }
   }, [dateFrom, dateTo, hasPermission, loadFinancialSummary]);
 
   // Quick action cards based on permissions
@@ -382,9 +389,20 @@ const Dashboard = () => {
           {hasPermission(["tvp_management", "financial_reports"]) && (
             <div className="mb-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                <h2 className="text-xl font-semibold text-foreground">
-                  Financial Summary
-                </h2>
+                <div>
+                  <h2 className="text-xl font-semibold text-foreground">
+                    Financial Summary
+                  </h2>
+                  {dateFrom && dateTo ? (
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Amounts below are for the selected period only (same week as &quot;Paid&quot; transaction week).
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Select a week or apply a custom range to see Financial Summary for that period.
+                    </p>
+                  )}
+                </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <Select
                     value={financialDateMode}
@@ -400,8 +418,20 @@ const Dashboard = () => {
                   />
                   {financialDateMode === "week" && (
                     <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFinancialWeek(calculatePreviousWeek())}
+                        iconName="Calendar"
+                        iconSize={14}
+                        iconPosition="left"
+                      >
+                        Previous week
+                      </Button>
                       <div className="flex items-center gap-1">
                         <Button
+                          type="button"
                           variant="ghost"
                           size="icon"
                           onClick={() => {
@@ -414,6 +444,7 @@ const Dashboard = () => {
                           iconName="ChevronLeft"
                         />
                         <Button
+                          type="button"
                           variant="ghost"
                           size="icon"
                           onClick={() => {
@@ -505,7 +536,13 @@ const Dashboard = () => {
                   )}
                 </div>
               </div>
-              {financialLoading ? (
+              {!dateFrom || !dateTo ? (
+                <div className="flex items-center justify-center py-12 border border-border rounded-lg bg-muted/20">
+                  <p className="text-sm text-muted-foreground">
+                    Select a week above (or set a custom range and click Apply) to see Financial Summary for that period.
+                  </p>
+                </div>
+              ) : financialLoading ? (
                 <div className="flex items-center justify-center py-12 border border-border rounded-lg bg-muted/20">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-2" />
                   <span className="text-sm text-muted-foreground">
@@ -514,51 +551,39 @@ const Dashboard = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                  {/* Total Outstanding Amount */}
+                  {/* Total Outstanding — for selected period only */}
                   <div className="bg-card border border-border rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <p className="text-sm text-muted-foreground mb-1">
-                          Total Outstanding Amount
+                          Total Outstanding (selected period)
                         </p>
                         <p
                           className={`text-2xl font-bold ${
-                            (dateFrom && dateTo && stats.bills.totalOutstandingForWeek != null
-                              ? stats.bills.totalOutstandingForWeek
-                              : stats.bills.totalOutstandingAmount) > 0
-                              ? "text-error"
-                              : "text-success"
+                            totalOutstandingDisplay > 0 ? "text-error" : "text-success"
                           }`}
                         >
-                          {formatCurrency(
-                            dateFrom && dateTo && stats.bills.totalOutstandingForWeek != null
-                              ? stats.bills.totalOutstandingForWeek
-                              : stats.bills.totalOutstandingAmount
-                          )}
+                          {formatCurrency(totalOutstandingDisplay)}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Amount to collect from all drivers
+                          Bill total for this period
                         </p>
                       </div>
                       <Icon
                         name="AlertCircle"
                         size={24}
                         className={
-                          (dateFrom && dateTo && stats.bills.totalOutstandingForWeek != null
-                            ? stats.bills.totalOutstandingForWeek
-                            : stats.bills.totalOutstandingAmount) > 0
-                            ? "text-error"
-                            : "text-success"
+                          totalOutstandingDisplay > 0 ? "text-error" : "text-success"
                         }
                       />
                     </div>
                   </div>
-                  {/* Balance to collect */}
+                  {/* Balance to collect — for selected period only */}
                   <div className="bg-card border border-border rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <p className="text-sm text-muted-foreground mb-1">
-                          Balance to collect
+                          Balance to collect (selected period)
                         </p>
                         <p
                           className={`text-2xl font-bold ${
@@ -568,9 +593,7 @@ const Dashboard = () => {
                           {formatCurrency(balanceToCollect)}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {dateFrom && dateTo
-                            ? "Remaining to collect for selected week"
-                            : "Remaining to collect (reduces when you add transactions)"}
+                          Remaining for this period after due/paid
                         </p>
                       </div>
                       <Icon
@@ -582,23 +605,21 @@ const Dashboard = () => {
                       />
                     </div>
                   </div>
-                  {/* Amount collected by account (for selected period) */}
+                  {/* Amount collected by account — for selected period only */}
                   <div className="bg-card border border-border rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-muted-foreground mb-1">
-                          LetzRyd A/c
+                          LetzRyd A/c (selected period)
                         </p>
                         <p className="text-xl font-bold text-foreground">
                           {formatCurrency(
                             stats.accountsCollected?.letzryd ?? 0,
                           )}
                         </p>
-                        {rangeLabel && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Collected in selected period
-                          </p>
-                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Collected in this period
+                        </p>
                       </div>
                       <Icon
                         name="Building2"
@@ -611,18 +632,16 @@ const Dashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-muted-foreground mb-1">
-                          Tawaaq Fleet A/c
+                          Tawaaq Fleet A/c (selected period)
                         </p>
                         <p className="text-xl font-bold text-foreground">
                           {formatCurrency(
                             stats.accountsCollected?.tawaaq_fleet ?? 0,
                           )}
                         </p>
-                        {rangeLabel && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Collected in selected period
-                          </p>
-                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Collected in this period
+                        </p>
                       </div>
                       <Icon name="Car" size={24} className="text-primary" />
                     </div>
@@ -631,18 +650,16 @@ const Dashboard = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-muted-foreground mb-1">
-                          Cash In hand
+                          Cash In hand (selected period)
                         </p>
                         <p className="text-xl font-bold text-foreground">
                           {formatCurrency(
                             stats.accountsCollected?.cash_in_hand ?? 0,
                           )}
                         </p>
-                        {rangeLabel && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Collected in selected period
-                          </p>
-                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Collected in this period
+                        </p>
                       </div>
                       <Icon name="Wallet" size={24} className="text-primary" />
                     </div>

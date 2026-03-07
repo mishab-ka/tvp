@@ -16,6 +16,7 @@ import {
   getTotalOutstandingBalance,
   getTVPOwnerDetails,
   updateBill,
+  getDriverWeekSummary,
 } from "../../../lib/tvpManagementAPI";
 import { supabase } from "../../../lib/supabase";
 import {
@@ -113,6 +114,15 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
   const [editingBill, setEditingBill] = useState(null);
   const [showBillEditModal, setShowBillEditModal] = useState(false);
   const [billEditLoading, setBillEditLoading] = useState(false);
+  const defaultWeek = useMemo(() => calculatePreviousWeek(), []);
+  const [financialWeek, setFinancialWeek] = useState(() =>
+    calculatePreviousWeek(),
+  );
+  const [weekSummary, setWeekSummary] = useState({
+    totalBillForWeek: 0,
+    outstandingForWeek: 0,
+  });
+  const [weekSummaryLoading, setWeekSummaryLoading] = useState(false);
   const paymentWeekOptions = useMemo(() => {
     const formatWeekLabel = (weekStart) => {
       const d = new Date(weekStart);
@@ -163,6 +173,35 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
       loadPayments();
     }
   }, [owner?.id, activeTab]);
+
+  useEffect(() => {
+    if (!owner?.id || !financialWeek?.weekStart || !financialWeek?.weekEnd) {
+      setWeekSummary({ totalBillForWeek: 0, outstandingForWeek: 0 });
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setWeekSummaryLoading(true);
+      try {
+        const summary = await getDriverWeekSummary(
+          owner.id,
+          financialWeek.weekStart,
+          financialWeek.weekEnd,
+        );
+        if (!cancelled) setWeekSummary(summary);
+      } catch (err) {
+        console.error("Error loading week summary:", err);
+        if (!cancelled)
+          setWeekSummary({ totalBillForWeek: 0, outstandingForWeek: 0 });
+      } finally {
+        if (!cancelled) setWeekSummaryLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [owner?.id, financialWeek?.weekStart, financialWeek?.weekEnd]);
 
   const loadBills = async () => {
     if (!owner?.id) return;
@@ -264,10 +303,12 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
     return colors?.[status] || colors?.inactive;
   };
 
-  const CARD = "bg-card rounded-2xl border border-border/80 shadow-sm overflow-hidden";
+  const CARD =
+    "bg-card rounded-2xl border border-border/80 shadow-sm overflow-hidden";
   const PADDING = "p-5";
   const BOX = "rounded-xl border border-border/80 bg-muted/30 p-4";
-  const SECTION_TITLE = "text-lg font-bold text-foreground flex items-center gap-2";
+  const SECTION_TITLE =
+    "text-lg font-bold text-foreground flex items-center gap-2";
 
   const renderProfileTab = () => (
     <div className="space-y-5">
@@ -303,133 +344,137 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
           </h3>
         </div>
         <div className={PADDING}>
-        <div className="space-y-3">
-          {isEditing ? (
-            <>
-              <Input
-                label="Phone Number"
-                type="tel"
-                value={editData?.phone || ""}
-                onChange={(e) =>
-                  setEditData({ ...editData, phone: e?.target?.value })
-                }
-              />
-              <Input
-                label="Alternative Phone 1"
-                type="tel"
-                value={editData?.alternativePhone1 || ""}
-                onChange={(e) =>
-                  setEditData({
-                    ...editData,
-                    alternativePhone1: e?.target?.value,
-                  })
-                }
-              />
-              <Input
-                label="Alternative Phone 2"
-                type="tel"
-                value={editData?.alternativePhone2 || ""}
-                onChange={(e) =>
-                  setEditData({
-                    ...editData,
-                    alternativePhone2: e?.target?.value,
-                  })
-                }
-              />
-              <Input
-                label="Alternative Phone 3"
-                type="tel"
-                value={editData?.alternativePhone3 || ""}
-                onChange={(e) =>
-                  setEditData({
-                    ...editData,
-                    alternativePhone3: e?.target?.value,
-                  })
-                }
-              />
-              <Input
-                label="Email Address"
-                type="email"
-                value={editData?.email || ""}
-                onChange={(e) =>
-                  setEditData({ ...editData, email: e?.target?.value })
-                }
-              />
-              <Input
-                label="Address"
-                value={editData?.address || ""}
-                onChange={(e) =>
-                  setEditData({ ...editData, address: e?.target?.value })
-                }
-              />
-            </>
-          ) : (
-            <>
-              <div className="flex items-center space-x-3">
-                <Icon
-                  name="Phone"
-                  size={16}
-                  className="text-muted-foreground"
+          <div className="space-y-3">
+            {isEditing ? (
+              <>
+                <Input
+                  label="Phone Number"
+                  type="tel"
+                  value={editData?.phone || ""}
+                  onChange={(e) =>
+                    setEditData({ ...editData, phone: e?.target?.value })
+                  }
                 />
-                <span className="text-sm text-foreground">
-                  {owner?.phone || "Not provided"}
-                </span>
-              </div>
-              {owner?.alternativePhone1 && (
-                <div className="flex items-center space-x-3">
-                  <Icon
-                    name="Phone"
-                    size={16}
-                    className="text-muted-foreground"
-                  />
-                  <span className="text-sm text-foreground">
-                    Alt. 1: {owner.alternativePhone1}
-                  </span>
-                </div>
-              )}
-              {owner?.alternativePhone2 && (
-                <div className="flex items-center space-x-3">
-                  <Icon
-                    name="Phone"
-                    size={16}
-                    className="text-muted-foreground"
-                  />
-                  <span className="text-sm text-foreground">
-                    Alt. 2: {owner.alternativePhone2}
-                  </span>
-                </div>
-              )}
-              {owner?.alternativePhone3 && (
-                <div className="flex items-center space-x-3">
-                  <Icon
-                    name="Phone"
-                    size={16}
-                    className="text-muted-foreground"
-                  />
-                  <span className="text-sm text-foreground">
-                    Alt. 3: {owner.alternativePhone3}
-                  </span>
-                </div>
-              )}
-              <div className="flex items-center space-x-3">
-                <Icon name="Mail" size={16} className="text-muted-foreground" />
-                <span className="text-sm text-foreground">
-                  {owner?.email || "Not provided"}
-                </span>
-              </div>
-              <div className="flex items-start space-x-3">
-                <Icon
-                  name="MapPin"
-                  size={16}
-                  className="text-muted-foreground mt-0.5 shrink-0"
+                <Input
+                  label="Alternative Phone 1"
+                  type="tel"
+                  value={editData?.alternativePhone1 || ""}
+                  onChange={(e) =>
+                    setEditData({
+                      ...editData,
+                      alternativePhone1: e?.target?.value,
+                    })
+                  }
                 />
-                <span className="text-sm text-foreground">
-                  {owner?.address || "Address not provided"}
-                </span>
-              </div>
-            </>
-          )}
-        </div>
+                <Input
+                  label="Alternative Phone 2"
+                  type="tel"
+                  value={editData?.alternativePhone2 || ""}
+                  onChange={(e) =>
+                    setEditData({
+                      ...editData,
+                      alternativePhone2: e?.target?.value,
+                    })
+                  }
+                />
+                <Input
+                  label="Alternative Phone 3"
+                  type="tel"
+                  value={editData?.alternativePhone3 || ""}
+                  onChange={(e) =>
+                    setEditData({
+                      ...editData,
+                      alternativePhone3: e?.target?.value,
+                    })
+                  }
+                />
+                <Input
+                  label="Email Address"
+                  type="email"
+                  value={editData?.email || ""}
+                  onChange={(e) =>
+                    setEditData({ ...editData, email: e?.target?.value })
+                  }
+                />
+                <Input
+                  label="Address"
+                  value={editData?.address || ""}
+                  onChange={(e) =>
+                    setEditData({ ...editData, address: e?.target?.value })
+                  }
+                />
+              </>
+            ) : (
+              <>
+                <div className="flex items-center space-x-3">
+                  <Icon
+                    name="Phone"
+                    size={16}
+                    className="text-muted-foreground"
+                  />
+                  <span className="text-sm text-foreground">
+                    {owner?.phone || "Not provided"}
+                  </span>
+                </div>
+                {owner?.alternativePhone1 && (
+                  <div className="flex items-center space-x-3">
+                    <Icon
+                      name="Phone"
+                      size={16}
+                      className="text-muted-foreground"
+                    />
+                    <span className="text-sm text-foreground">
+                      Alt. 1: {owner.alternativePhone1}
+                    </span>
+                  </div>
+                )}
+                {owner?.alternativePhone2 && (
+                  <div className="flex items-center space-x-3">
+                    <Icon
+                      name="Phone"
+                      size={16}
+                      className="text-muted-foreground"
+                    />
+                    <span className="text-sm text-foreground">
+                      Alt. 2: {owner.alternativePhone2}
+                    </span>
+                  </div>
+                )}
+                {owner?.alternativePhone3 && (
+                  <div className="flex items-center space-x-3">
+                    <Icon
+                      name="Phone"
+                      size={16}
+                      className="text-muted-foreground"
+                    />
+                    <span className="text-sm text-foreground">
+                      Alt. 3: {owner.alternativePhone3}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center space-x-3">
+                  <Icon
+                    name="Mail"
+                    size={16}
+                    className="text-muted-foreground"
+                  />
+                  <span className="text-sm text-foreground">
+                    {owner?.email || "Not provided"}
+                  </span>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <Icon
+                    name="MapPin"
+                    size={16}
+                    className="text-muted-foreground mt-0.5 shrink-0"
+                  />
+                  <span className="text-sm text-foreground">
+                    {owner?.address || "Address not provided"}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -466,59 +511,73 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
       <div className={CARD}>
         <div className={`${PADDING} border-b border-border/60`}>
           <h3 className={SECTION_TITLE}>
-            <Icon name="BarChart3" size={20} className="text-primary shrink-0" />
+            <Icon
+              name="BarChart3"
+              size={20}
+              className="text-primary shrink-0"
+            />
             Metrics
           </h3>
         </div>
         <div className={PADDING}>
-        <div className="grid grid-cols-2 gap-3">
-          <div className={BOX}>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Vehicles</span>
-              <Icon name="Car" size={16} className="text-primary shrink-0" />
-            </div>
-            <div className="text-xl font-bold text-foreground mt-1 tabular-nums">
-              {owner?.vehicleCount ?? 0}
-            </div>
-          </div>
-          <div className={BOX}>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rental Days</span>
-              <Icon name="Calendar" size={16} className="text-primary shrink-0" />
-            </div>
-            {isEditing ? (
-              <Input
-                type="number"
-                min="0"
-                value={
-                  editData.cumulativeRentalDays ??
-                  owner?.cumulativeRentalDays ??
-                  0
-                }
-                onChange={(e) =>
-                  setEditData({
-                    ...editData,
-                    cumulativeRentalDays: parseInt(e.target.value) || 0,
-                  })
-                }
-                className="mt-1"
-              />
-            ) : (
-              <div className="text-xl font-bold text-foreground mt-1 tabular-nums">
-                {owner?.cumulativeRentalDays ?? 0}
+          <div className="grid grid-cols-2 gap-3">
+            <div className={BOX}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Vehicles
+                </span>
+                <Icon name="Car" size={16} className="text-primary shrink-0" />
               </div>
-            )}
-          </div>
-          <div className={BOX}>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Category</span>
-              <Icon name="User" size={16} className="text-primary shrink-0" />
+              <div className="text-xl font-bold text-foreground mt-1 tabular-nums">
+                {owner?.vehicleCount ?? 0}
+              </div>
             </div>
-            <div className="text-xl font-bold text-foreground mt-1 capitalize">
-              {owner?.category === "double_driver" ? "Double" : "Single"}
+            <div className={BOX}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Rental Days
+                </span>
+                <Icon
+                  name="Calendar"
+                  size={16}
+                  className="text-primary shrink-0"
+                />
+              </div>
+              {isEditing ? (
+                <Input
+                  type="number"
+                  min="0"
+                  value={
+                    editData.cumulativeRentalDays ??
+                    owner?.cumulativeRentalDays ??
+                    0
+                  }
+                  onChange={(e) =>
+                    setEditData({
+                      ...editData,
+                      cumulativeRentalDays: parseInt(e.target.value) || 0,
+                    })
+                  }
+                  className="mt-1"
+                />
+              ) : (
+                <div className="text-xl font-bold text-foreground mt-1 tabular-nums">
+                  {owner?.cumulativeRentalDays ?? 0}
+                </div>
+              )}
+            </div>
+            <div className={BOX}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Category
+                </span>
+                <Icon name="User" size={16} className="text-primary shrink-0" />
+              </div>
+              <div className="text-xl font-bold text-foreground mt-1 capitalize">
+                {owner?.category === "double_driver" ? "Double" : "Single"}
+              </div>
             </div>
           </div>
-        </div>
         </div>
       </div>
 
@@ -526,7 +585,11 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
       <div className={CARD}>
         <div className={`${PADDING} border-b border-border/60`}>
           <h3 className={SECTION_TITLE}>
-            <Icon name="DollarSign" size={20} className="text-primary shrink-0" />
+            <Icon
+              name="DollarSign"
+              size={20}
+              className="text-primary shrink-0"
+            />
             Additional Financial Information
           </h3>
         </div>
@@ -554,7 +617,9 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                   className="mt-1"
                 />
               ) : (
-                <div className={`text-lg font-bold mt-1 tabular-nums ${(Number(owner?.roomDeposit) || 0) < 0 ? "text-destructive" : (Number(owner?.roomDeposit) || 0) > 0 ? "text-success" : "text-foreground"}`}>
+                <div
+                  className={`text-lg font-bold mt-1 tabular-nums ${(Number(owner?.roomDeposit) || 0) < 0 ? "text-destructive" : (Number(owner?.roomDeposit) || 0) > 0 ? "text-success" : "text-foreground"}`}
+                >
                   {formatCurrency(owner?.roomDeposit ?? 0)}
                 </div>
               )}
@@ -564,14 +629,23 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   Deposit
                 </span>
-                <Icon name="Wallet" size={16} className="text-primary shrink-0" />
+                <Icon
+                  name="Wallet"
+                  size={16}
+                  className="text-primary shrink-0"
+                />
               </div>
               {isEditing ? (
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
-                  value={editData.depositAmount ?? owner?.depositAmount ?? owner?.deposit_amount ?? 0}
+                  value={
+                    editData.depositAmount ??
+                    owner?.depositAmount ??
+                    owner?.deposit_amount ??
+                    0
+                  }
                   onChange={(e) =>
                     setEditData({
                       ...editData,
@@ -581,8 +655,12 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                   className="mt-1"
                 />
               ) : (
-                <div className={`text-lg font-bold mt-1 tabular-nums ${(Number(owner?.depositAmount ?? owner?.deposit_amount) || 0) < 0 ? "text-destructive" : (Number(owner?.depositAmount ?? owner?.deposit_amount) || 0) > 0 ? "text-success" : "text-foreground"}`}>
-                  {formatCurrency(owner?.depositAmount ?? owner?.deposit_amount ?? 0)}
+                <div
+                  className={`text-lg font-bold mt-1 tabular-nums ${(Number(owner?.depositAmount ?? owner?.deposit_amount) || 0) < 0 ? "text-destructive" : (Number(owner?.depositAmount ?? owner?.deposit_amount) || 0) > 0 ? "text-success" : "text-foreground"}`}
+                >
+                  {formatCurrency(
+                    owner?.depositAmount ?? owner?.deposit_amount ?? 0,
+                  )}
                 </div>
               )}
             </div>
@@ -591,7 +669,11 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   Pre-Paid Rent Amount
                 </span>
-                <Icon name="Wallet" size={16} className="text-success shrink-0" />
+                <Icon
+                  name="Wallet"
+                  size={16}
+                  className="text-success shrink-0"
+                />
               </div>
               {isEditing ? (
                 <Input
@@ -610,7 +692,9 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                   className="mt-1"
                 />
               ) : (
-                <div className={`text-lg font-bold mt-1 tabular-nums ${(Number(owner?.prePaidRentAmount) || 0) < 0 ? "text-destructive" : (Number(owner?.prePaidRentAmount) || 0) > 0 ? "text-success" : "text-foreground"}`}>
+                <div
+                  className={`text-lg font-bold mt-1 tabular-nums ${(Number(owner?.prePaidRentAmount) || 0) < 0 ? "text-destructive" : (Number(owner?.prePaidRentAmount) || 0) > 0 ? "text-success" : "text-foreground"}`}
+                >
                   {formatCurrency(owner?.prePaidRentAmount ?? 0)}
                 </div>
               )}
@@ -620,14 +704,20 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   Documents Charge
                 </span>
-                <Icon name="FileText" size={16} className="text-primary shrink-0" />
+                <Icon
+                  name="FileText"
+                  size={16}
+                  className="text-primary shrink-0"
+                />
               </div>
               {isEditing ? (
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
-                  value={editData.documentsCharge ?? owner?.documentsCharge ?? 0}
+                  value={
+                    editData.documentsCharge ?? owner?.documentsCharge ?? 0
+                  }
                   onChange={(e) =>
                     setEditData({
                       ...editData,
@@ -637,7 +727,9 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                   className="mt-1"
                 />
               ) : (
-                <div className={`text-lg font-bold mt-1 tabular-nums ${(Number(owner?.documentsCharge) || 0) < 0 ? "text-destructive" : (Number(owner?.documentsCharge) || 0) > 0 ? "text-success" : "text-foreground"}`}>
+                <div
+                  className={`text-lg font-bold mt-1 tabular-nums ${(Number(owner?.documentsCharge) || 0) < 0 ? "text-destructive" : (Number(owner?.documentsCharge) || 0) > 0 ? "text-success" : "text-foreground"}`}
+                >
                   {formatCurrency(owner?.documentsCharge ?? 0)}
                 </div>
               )}
@@ -655,32 +747,32 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
           </h3>
         </div>
         <div className={PADDING}>
-        <div className={BOX}>
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-foreground">
-              Including room
-            </span>
-            <Icon name="Home" size={16} className="text-primary shrink-0" />
-          </div>
-          {isEditing ? (
-            <Checkbox
-              id="including-room"
-              checked={!!(editData.includingRoom ?? owner?.includingRoom)}
-              onCheckedChange={(checked) =>
-                setEditData({
-                  ...editData,
-                  includingRoom: !!checked,
-                })
-              }
-              label="Include room rent in bill generation"
-              className="mt-2"
-            />
-          ) : (
-            <div className="text-lg font-bold text-foreground mt-1">
-              {owner?.includingRoom ? "Yes" : "No"}
+          <div className={BOX}>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-foreground">
+                Including room
+              </span>
+              <Icon name="Home" size={16} className="text-primary shrink-0" />
             </div>
-          )}
-        </div>
+            {isEditing ? (
+              <Checkbox
+                id="including-room"
+                checked={!!(editData.includingRoom ?? owner?.includingRoom)}
+                onCheckedChange={(checked) =>
+                  setEditData({
+                    ...editData,
+                    includingRoom: !!checked,
+                  })
+                }
+                label="Include room rent in bill generation"
+                className="mt-2"
+              />
+            ) : (
+              <div className="text-lg font-bold text-foreground mt-1">
+                {owner?.includingRoom ? "Yes" : "No"}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -693,70 +785,75 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
           </h3>
         </div>
         <div className={PADDING}>
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            iconName="Key"
-            iconPosition="left"
-            iconSize={14}
-            fullWidth
-          >
-            Reset Password
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            iconName="Car"
-            iconPosition="left"
-            iconSize={14}
-            fullWidth
-          >
-            Assign Vehicle
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            iconName="FileText"
-            iconPosition="left"
-            iconSize={14}
-            fullWidth
-          >
-            Request Docs
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            iconName="AlertTriangle"
-            iconPosition="left"
-            iconSize={14}
-            fullWidth
-            onClick={() => onOpenAddPenalty?.(owner)}
-          >
-            Apply Penalty
-          </Button>
-        </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              iconName="Key"
+              iconPosition="left"
+              iconSize={14}
+              fullWidth
+            >
+              Reset Password
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              iconName="Car"
+              iconPosition="left"
+              iconSize={14}
+              fullWidth
+            >
+              Assign Vehicle
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              iconName="FileText"
+              iconPosition="left"
+              iconSize={14}
+              fullWidth
+            >
+              Request Docs
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              iconName="AlertTriangle"
+              iconPosition="left"
+              iconSize={14}
+              fullWidth
+              onClick={() => onOpenAddPenalty?.(owner)}
+            >
+              Apply Penalty
+            </Button>
+          </div>
         </div>
       </div>
     </div>
   );
 
   const renderVehiclesTab = () => {
-    const vehicleList = owner?.vehicles?.length > 0
-      ? owner.vehicles.map((v, i) => ({
-          id: v?.id || `v-${i}`,
-          plateNumber: v?.plateNumber || v?.car_number || v?.carNumber || `Vehicle #${i + 1}`,
-          meta: v?.model
-            ? `${v?.model}${v?.year ? ` • ${v?.year}` : ""}`
-            : v?.fleetName || v?.fleet_name || "Fleet not specified",
-          status: v?.status || "unknown",
-        }))
-      : resolveVehicleNumbers().map((plate, i) => ({
-          id: `plate-${i}`,
-          plateNumber: plate,
-          meta: "—",
-          status: "active",
-        }));
+    const vehicleList =
+      owner?.vehicles?.length > 0
+        ? owner.vehicles.map((v, i) => ({
+            id: v?.id || `v-${i}`,
+            plateNumber:
+              v?.plateNumber ||
+              v?.car_number ||
+              v?.carNumber ||
+              `Vehicle #${i + 1}`,
+            meta: v?.model
+              ? `${v?.model}${v?.year ? ` • ${v?.year}` : ""}`
+              : v?.fleetName || v?.fleet_name || "Fleet not specified",
+            status: v?.status || "unknown",
+          }))
+        : resolveVehicleNumbers().map((plate, i) => ({
+            id: `plate-${i}`,
+            plateNumber: plate,
+            meta: "—",
+            status: "active",
+          }));
     const hasVehicles = vehicleList.length > 0;
 
     return (
@@ -828,8 +925,12 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                   size={40}
                   className="text-muted-foreground mx-auto mb-3"
                 />
-                <p className="text-sm font-medium text-foreground">No vehicles assigned</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Assign a vehicle from the owner form or use the button above</p>
+                <p className="text-sm font-medium text-foreground">
+                  No vehicles assigned
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Assign a vehicle from the owner form or use the button above
+                </p>
               </div>
             )}
           </div>
@@ -886,15 +987,20 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
     const isEditing = Boolean(editingPaymentId);
     try {
       setPaymentFormSubmitting(true);
+      // For Paid: week = which week's bill they're paying (from WeekSelector). Date = when they paid.
       const weekFromDate = formData.paymentDate
         ? calculateWeekFromDate(formData.paymentDate)
         : null;
-      const weekStart = (formData.paymentType === "penalty_other" || formData.paymentType === "accident_due") && formData.weekStart && formData.weekEnd
+      const useFormWeek =
+        (formData.paymentType === "penalty_other" ||
+          formData.paymentType === "accident_due" ||
+          formData.paymentType === "penalty_paid") &&
+        formData.weekStart &&
+        formData.weekEnd;
+      const weekStart = useFormWeek
         ? formData.weekStart
         : weekFromDate?.weekStart;
-      const weekEnd = (formData.paymentType === "penalty_other" || formData.paymentType === "accident_due") && formData.weekStart && formData.weekEnd
-        ? formData.weekEnd
-        : weekFromDate?.weekEnd;
+      const weekEnd = useFormWeek ? formData.weekEnd : weekFromDate?.weekEnd;
 
       if (isEditing) {
         await updateDriverPayment(editingPaymentId, owner.id, {
@@ -1026,7 +1132,9 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
     const totals = { letzryd: 0, tawaaq_fleet: 0, cash_in_hand: 0 };
     depositPayments.forEach((p) => {
       if (!p.account || totals[p.account] === undefined) return;
-      if (["deposit", "deposit_refund", "deposit_paid"].includes(p.payment_type))
+      if (
+        ["deposit", "deposit_refund", "deposit_paid"].includes(p.payment_type)
+      )
         totals[p.account] += Number(p?.payment_amount) || 0;
       else totals[p.account] -= Number(p?.payment_amount) || 0;
     });
@@ -1038,7 +1146,15 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
     penaltyPayments.forEach((p) => {
       if (p.payment_type === "bill") return;
       if (!p.account || totals[p.account] === undefined) return;
-      if (["penalty_paid", "paid", "refund", "penalty_refund", "accident_paid"].includes(p.payment_type))
+      if (
+        [
+          "penalty_paid",
+          "paid",
+          "refund",
+          "penalty_refund",
+          "accident_paid",
+        ].includes(p.payment_type)
+      )
         totals[p.account] -= Number(p?.payment_amount) || 0;
       else totals[p.account] += Number(p?.payment_amount) || 0;
     });
@@ -1048,7 +1164,8 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
   const totalCollectedByAccount = useMemo(() => {
     const totals = { letzryd: 0, tawaaq_fleet: 0, cash_in_hand: 0 };
     (payments || []).forEach((p) => {
-      if (!["paid", "penalty_paid", "accident_paid"].includes(p.payment_type)) return;
+      if (!["paid", "penalty_paid", "accident_paid"].includes(p.payment_type))
+        return;
       const k =
         p?.account && totals[p.account] !== undefined ? p.account : "letzryd";
       totals[k] += Number(p?.payment_amount) || 0;
@@ -1070,18 +1187,29 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
         label: "OS Balance",
         value: formatCurrency(Math.abs(owner?.outstandingBalance ?? 0)),
         icon: "AlertCircle",
-        iconBg: (owner?.outstandingBalance ?? 0) > 0 ? "bg-destructive/15" : "bg-success/15",
-        iconColor: (owner?.outstandingBalance ?? 0) > 0 ? "text-destructive" : "text-success",
-        valueColor: (owner?.outstandingBalance ?? 0) > 0 ? "text-destructive" : "text-success",
+        iconBg:
+          (owner?.outstandingBalance ?? 0) > 0
+            ? "bg-destructive/15"
+            : "bg-success/15",
+        iconColor:
+          (owner?.outstandingBalance ?? 0) > 0
+            ? "text-destructive"
+            : "text-success",
+        valueColor:
+          (owner?.outstandingBalance ?? 0) > 0
+            ? "text-destructive"
+            : "text-success",
       },
       {
         label: "PP Balance",
-        value: formatCurrency(owner?.penaltyAmount ?? owner?.penalty_amount ?? 0),
+        value: formatCurrency(
+          owner?.penaltyAmount ?? owner?.penalty_amount ?? 0,
+        ),
         icon: "AlertTriangle",
         iconBg: "bg-warning/15",
         iconColor: "text-warning",
         valueColor: "text-foreground",
-       // hint: "Added to the driver's next bill; reduces after bill is created.",
+        // hint: "Added to the driver's next bill; reduces after bill is created.",
       },
       {
         label: "Rental Days",
@@ -1104,7 +1232,7 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
               Financial overview
             </h3>
           </div> */}
-   
+
           <div className="p-0">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {statCards.map((card, idx) => (
@@ -1113,37 +1241,62 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                   className="rounded-xl border border-border/80 bg-card/80 backdrop-blur p-4 shadow-sm hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-center gap-3 mb-2">
-                    <span className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${card.iconBg}`}>
-                      <Icon name={card.icon} size={18} className={card.iconColor} />
+                    <span
+                      className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${card.iconBg}`}
+                    >
+                      <Icon
+                        name={card.icon}
+                        size={18}
+                        className={card.iconColor}
+                      />
                     </span>
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                       {card.label}
                     </span>
                   </div>
                   {card.hint && (
-                    <p className="text-[11px] text-muted-foreground mb-2 leading-tight">{card.hint}</p>
+                    <p className="text-[11px] text-muted-foreground mb-2 leading-tight">
+                      {card.hint}
+                    </p>
                   )}
                   {idx === 2 && isEditing ? (
                     <Input
                       type="number"
                       min="0"
                       step="0.01"
-                      value={editData.penaltyAmount ?? owner?.penaltyAmount ?? owner?.penalty_amount ?? 0}
+                      value={
+                        editData.penaltyAmount ??
+                        owner?.penaltyAmount ??
+                        owner?.penalty_amount ??
+                        0
+                      }
                       onChange={(e) =>
-                        setEditData({ ...editData, penaltyAmount: parseFloat(e.target.value) || 0 })
+                        setEditData({
+                          ...editData,
+                          penaltyAmount: parseFloat(e.target.value) || 0,
+                        })
                       }
                     />
                   ) : idx === 3 && isEditing ? (
                     <Input
                       type="number"
                       min="0"
-                      value={editData.cumulativeRentalDays ?? owner?.cumulativeRentalDays ?? 0}
+                      value={
+                        editData.cumulativeRentalDays ??
+                        owner?.cumulativeRentalDays ??
+                        0
+                      }
                       onChange={(e) =>
-                        setEditData({ ...editData, cumulativeRentalDays: parseInt(e.target.value) || 0 })
+                        setEditData({
+                          ...editData,
+                          cumulativeRentalDays: parseInt(e.target.value) || 0,
+                        })
                       }
                     />
                   ) : (
-                    <div className={`text-xl font-bold tabular-nums ${card.valueColor}`}>
+                    <div
+                      className={`text-xl font-bold tabular-nums ${card.valueColor}`}
+                    >
                       {card.value}
                     </div>
                   )}
@@ -1199,8 +1352,12 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                 <Icon name="Receipt" size={18} className="text-primary" />
               </span>
               <div>
-                <h3 className="text-base font-bold text-foreground">Transactions</h3>
-                <p className="text-xs text-muted-foreground">Preview (latest 5)</p>
+                <h3 className="text-base font-bold text-foreground">
+                  Transactions
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Preview (latest 5)
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1214,7 +1371,11 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
               >
                 Add / Edit
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setActiveTab("payments")}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setActiveTab("payments")}
+              >
                 View all
               </Button>
             </div>
@@ -1224,18 +1385,31 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
             {paymentsLoading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">Loading transactions...</p>
+                <p className="text-sm text-muted-foreground">
+                  Loading transactions...
+                </p>
               </div>
             ) : payments.length === 0 ? (
               <div className="text-center py-8 rounded-xl border-2 border-dashed border-border/80 bg-muted/20">
-                <Icon name="CreditCard" size={32} className="text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm font-medium text-foreground">No transactions yet</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Add one from the Payments tab</p>
+                <Icon
+                  name="CreditCard"
+                  size={32}
+                  className="text-muted-foreground mx-auto mb-2"
+                />
+                <p className="text-sm font-medium text-foreground">
+                  No transactions yet
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Add one from the Payments tab
+                </p>
               </div>
             ) : (
               <div className="space-y-2">
                 {payments.slice(0, 5).map((payment) => {
-                  const { text, className } = formatTransactionAmount(payment.payment_type, payment.payment_amount);
+                  const { text, className } = formatTransactionAmount(
+                    payment.payment_type,
+                    payment.payment_amount,
+                  );
                   const notes = payment.notes ?? payment.payment_notes ?? "";
                   return (
                     <div
@@ -1244,13 +1418,17 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 min-w-0 flex-wrap">
-                          <span className={`text-lg font-bold tabular-nums shrink-0 ${className}`}>
+                          <span
+                            className={`text-lg font-bold tabular-nums shrink-0 ${className}`}
+                          >
                             {text}
                           </span>
                           <span
                             className={`text-xs px-2.5 py-1 rounded-lg font-semibold border ${getTransactionBadgeClass(payment.payment_type)}`}
                           >
-                            {getPaymentTypeLabel(payment.payment_type)?.split(" (")[0] || payment.payment_type}
+                            {getPaymentTypeLabel(payment.payment_type)?.split(
+                              " (",
+                            )[0] || payment.payment_type}
                           </span>
                           {payment.account && (
                             <span className="text-xs px-2.5 py-1 rounded-lg border border-primary/30 bg-primary/10 text-primary font-medium">
@@ -1259,19 +1437,27 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                           )}
                         </div>
                         {notes && (
-                          <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2" title={notes}>
+                          <p
+                            className="text-xs text-muted-foreground mt-1.5 line-clamp-2"
+                            title={notes}
+                          >
                             {notes}
                           </p>
                         )}
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <span className="text-xs text-muted-foreground tabular-nums">
-                          {new Date(payment.payment_date).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                          {payment.reference_number ? ` · ${payment.reference_number}` : ""}
+                          {new Date(payment.payment_date).toLocaleDateString(
+                            "en-US",
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            },
+                          )}
+                          {payment.reference_number
+                            ? ` · ${payment.reference_number}`
+                            : ""}
                         </span>
                         <Button
                           variant="outline"
@@ -1478,7 +1664,11 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                         rel="noreferrer"
                         className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
                       >
-                        <Icon name="ExternalLink" size={12} className="shrink-0" />
+                        <Icon
+                          name="ExternalLink"
+                          size={12}
+                          className="shrink-0"
+                        />
                         View current file
                       </a>
                     )}
@@ -1501,9 +1691,15 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                     iconPosition="left"
                     iconSize={14}
                     disabled={isProcessing}
-                    onClick={() => fileInputRefs.current[doc.formKey]?.click?.()}
+                    onClick={() =>
+                      fileInputRefs.current[doc.formKey]?.click?.()
+                    }
                   >
-                    {isProcessing ? "Processing..." : url ? "Replace" : "Upload"}
+                    {isProcessing
+                      ? "Processing..."
+                      : url
+                        ? "Replace"
+                        : "Upload"}
                   </Button>
                   {url && (
                     <Button
@@ -1551,15 +1747,29 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="w-10 h-10 rounded-lg bg-success/15 flex items-center justify-center shrink-0">
-                          <Icon name="FileCheck" size={20} className="text-success" />
+                          <Icon
+                            name="FileCheck"
+                            size={20}
+                            className="text-success"
+                          />
                         </span>
                         <div>
-                          <div className="text-sm font-semibold text-foreground">{doc.label}</div>
-                          <div className="text-xs text-success font-medium">Uploaded</div>
+                          <div className="text-sm font-semibold text-foreground">
+                            {doc.label}
+                          </div>
+                          <div className="text-xs text-success font-medium">
+                            Uploaded
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <Button variant="outline" size="sm" iconName="Eye" iconSize={14} onClick={() => window.open(url, "_blank")}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          iconName="Eye"
+                          iconSize={14}
+                          onClick={() => window.open(url, "_blank")}
+                        >
                           View
                         </Button>
                         <Button
@@ -1580,9 +1790,17 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
               </div>
             ) : (
               <div className="text-center py-8 rounded-xl border-2 border-dashed border-border/80 bg-muted/10">
-                <Icon name="FileText" size={36} className="text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm font-medium text-foreground">No documents uploaded</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Use the cards above to upload</p>
+                <Icon
+                  name="FileText"
+                  size={36}
+                  className="text-muted-foreground mx-auto mb-2"
+                />
+                <p className="text-sm font-medium text-foreground">
+                  No documents uploaded
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Use the cards above to upload
+                </p>
               </div>
             )}
           </div>
@@ -1602,10 +1820,15 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
             </span>
           </div>
           <div className="p-4">
-            {owner?.uberDriverPhotos && Array.isArray(owner.uberDriverPhotos) && owner.uberDriverPhotos.length > 0 ? (
+            {owner?.uberDriverPhotos &&
+            Array.isArray(owner.uberDriverPhotos) &&
+            owner.uberDriverPhotos.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {owner.uberDriverPhotos.map((photoUrl, index) => (
-                  <div key={`uber-photo-${index}`} className="relative group rounded-xl overflow-hidden border border-border/80 shadow-sm">
+                  <div
+                    key={`uber-photo-${index}`}
+                    className="relative group rounded-xl overflow-hidden border border-border/80 shadow-sm"
+                  >
                     <img
                       src={photoUrl}
                       alt={`Uber driver profile ${index + 1}`}
@@ -1629,19 +1852,32 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                         iconSize={14}
                         className="h-8 text-white bg-destructive/80 hover:bg-destructive border-0"
                         onClick={async () => {
-                          if (window.confirm(`Delete Uber driver photo ${index + 1}?`)) {
+                          if (
+                            window.confirm(
+                              `Delete Uber driver photo ${index + 1}?`,
+                            )
+                          ) {
                             try {
-                              const updatedPhotos = owner.uberDriverPhotos.filter((_, i) => i !== index);
+                              const updatedPhotos =
+                                owner.uberDriverPhotos.filter(
+                                  (_, i) => i !== index,
+                                );
                               const payload = buildOwnerUpdatePayload({
                                 uberDriverPhotos: updatedPhotos,
                                 existingUberPhotos: updatedPhotos,
                               });
-                              const updatedOwner = await updateTVPOwner(owner.id, payload);
+                              const updatedOwner = await updateTVPOwner(
+                                owner.id,
+                                payload,
+                              );
                               setEditData(updatedOwner);
                               onUpdate(updatedOwner);
                             } catch (err) {
                               console.error("Failed to delete photo:", err);
-                              alert("Failed to delete photo: " + (err.message || "Unknown error"));
+                              alert(
+                                "Failed to delete photo: " +
+                                  (err.message || "Unknown error"),
+                              );
                             }
                           }
                         }}
@@ -1654,8 +1890,14 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
               </div>
             ) : (
               <div className="text-center py-8 rounded-xl border-2 border-dashed border-border/80 bg-muted/10">
-                <Icon name="Image" size={36} className="text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm font-medium text-foreground">No Uber driver photos uploaded</p>
+                <Icon
+                  name="Image"
+                  size={36}
+                  className="text-muted-foreground mx-auto mb-2"
+                />
+                <p className="text-sm font-medium text-foreground">
+                  No Uber driver photos uploaded
+                </p>
               </div>
             )}
           </div>
@@ -1694,8 +1936,14 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
         </div>
       ) : bills.length === 0 ? (
         <div className="text-center py-10 rounded-2xl border-2 border-dashed border-border/80 bg-muted/20">
-          <Icon name="Receipt" size={40} className="text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm font-medium text-foreground">No bills generated yet</p>
+          <Icon
+            name="Receipt"
+            size={40}
+            className="text-muted-foreground mx-auto mb-3"
+          />
+          <p className="text-sm font-medium text-foreground">
+            No bills generated yet
+          </p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -1721,7 +1969,8 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                   </span>
                 </div>
                 <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-                  Generated {new Date(bill.created_at).toLocaleDateString("en-US", {
+                  Generated{" "}
+                  {new Date(bill.created_at).toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "short",
                     day: "numeric",
@@ -1757,7 +2006,11 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                   bill.vehicles_breakdown.length > 0 && (
                     <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
                       <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
-                        <Icon name="List" size={14} className="text-primary shrink-0" />
+                        <Icon
+                          name="List"
+                          size={14}
+                          className="text-primary shrink-0"
+                        />
                         Vehicle breakdown
                       </p>
                       <div className="space-y-4">
@@ -1774,33 +2027,52 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                             >
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 text-sm">
                                 <div className="col-span-2 sm:col-span-4 font-semibold text-foreground flex items-center gap-2 mb-2">
-                                  <span className="text-muted-foreground font-normal">Vehicle {idx + 1}:</span>
+                                  <span className="text-muted-foreground font-normal">
+                                    Vehicle {idx + 1}:
+                                  </span>
                                   {vehicle.vehicleNumber || "N/A"}
                                 </div>
                                 <div className="flex items-baseline gap-1.5">
-                                  <span className="text-muted-foreground text-xs">Days</span>
-                                  <span className="font-semibold tabular-nums">{vehicle.rentalDays || 0}</span>
+                                  <span className="text-muted-foreground text-xs">
+                                    Days
+                                  </span>
+                                  <span className="font-semibold tabular-nums">
+                                    {vehicle.rentalDays || 0}
+                                  </span>
                                 </div>
                                 <div className="flex items-baseline gap-1.5">
-                                  <span className="text-muted-foreground text-xs">Trips</span>
-                                  <span className="font-semibold tabular-nums">{vehicle.trips || 0}</span>
+                                  <span className="text-muted-foreground text-xs">
+                                    Trips
+                                  </span>
+                                  <span className="font-semibold tabular-nums">
+                                    {vehicle.trips || 0}
+                                  </span>
                                 </div>
                                 <div className="flex items-baseline gap-1.5 col-span-2">
-                                  <span className="text-muted-foreground text-xs">Rent</span>
+                                  <span className="text-muted-foreground text-xs">
+                                    Rent
+                                  </span>
                                   <span className="font-semibold tabular-nums">
-                                    ₹{Number(vehicle.dailyRent || 0).toFixed(2)} × {vehicle.rentalDays || 0} days
+                                    ₹{Number(vehicle.dailyRent || 0).toFixed(2)}{" "}
+                                    × {vehicle.rentalDays || 0} days
                                   </span>
                                 </div>
                                 <div className="flex items-baseline gap-1.5 col-span-2 sm:col-span-4">
-                                  <span className="text-muted-foreground text-xs">Rent</span>
-                                  <span className="font-bold text-foreground tabular-nums">₹{rent.toFixed(2)}</span>
+                                  <span className="text-muted-foreground text-xs">
+                                    Rent
+                                  </span>
+                                  <span className="font-bold text-foreground tabular-nums">
+                                    ₹{rent.toFixed(2)}
+                                  </span>
                                 </div>
                               </div>
                             </div>
                           );
                         })}
                         <div className="pt-3 mt-1 border-t border-border/80 flex justify-between items-center">
-                          <span className="text-sm font-semibold text-foreground">Total vehicle rent</span>
+                          <span className="text-sm font-semibold text-foreground">
+                            Total vehicle rent
+                          </span>
                           <span className="text-sm font-bold text-foreground tabular-nums">
                             ₹
                             {bill.vehicles_breakdown
@@ -1808,7 +2080,9 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                                 (sum, v) =>
                                   sum +
                                   Number(
-                                    v.vehicleRent || v.dailyRent * v.rentalDays || 0,
+                                    v.vehicleRent ||
+                                      v.dailyRent * v.rentalDays ||
+                                      0,
                                   ),
                                 0,
                               )
@@ -1829,7 +2103,9 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
 
                 {/* Final amount – highlighted row */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border/60">
-                  <span className="text-sm font-semibold text-muted-foreground">Final amount</span>
+                  <span className="text-sm font-semibold text-muted-foreground">
+                    Final amount
+                  </span>
                   <span
                     className={`text-xl font-bold tabular-nums ${
                       bill.current_os >= 0 ? "text-success" : "text-error"
@@ -1900,16 +2176,30 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
   };
 
   const DUE_TYPES = ["deposit_due", "penalty_due", "due", "accident_due"];
-  const REFUND_PAID_TYPES = ["deposit_refund", "deposit_paid", "penalty_refund", "penalty_paid", "accident_paid", "paid", "refund"];
+  const REFUND_PAID_TYPES = [
+    "deposit_refund",
+    "deposit_paid",
+    "penalty_refund",
+    "penalty_paid",
+    "accident_paid",
+    "paid",
+    "refund",
+  ];
 
   const formatTransactionAmount = (paymentType, amount) => {
     const num = Number(amount) || 0;
     const formatted = formatCurrency(num);
     if (DUE_TYPES.includes(paymentType)) {
-      return { text: `-${formatted}`, className: "text-red-600 dark:text-red-400 font-medium" };
+      return {
+        text: `-${formatted}`,
+        className: "text-red-600 dark:text-red-400 font-medium",
+      };
     }
     if (REFUND_PAID_TYPES.includes(paymentType)) {
-      return { text: `+${formatted}`, className: "text-emerald-600 dark:text-emerald-400 font-medium" };
+      return {
+        text: `+${formatted}`,
+        className: "text-emerald-600 dark:text-emerald-400 font-medium",
+      };
     }
     return { text: formatted, className: "font-medium text-foreground" };
   };
@@ -1941,7 +2231,11 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
       <div className="p-4 border-b border-border/60 flex items-center justify-between bg-gradient-to-r from-primary/10 to-primary/5">
         <h4 className="text-base font-bold text-foreground flex items-center gap-2">
           <span className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-            <Icon name={ledger === "deposit" ? "Wallet" : "AlertCircle"} size={18} className="text-primary" />
+            <Icon
+              name={ledger === "deposit" ? "Wallet" : "AlertCircle"}
+              size={18}
+              className="text-primary"
+            />
           </span>
           {title}
         </h4>
@@ -1958,7 +2252,9 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
       </div>
       <div className="p-4 space-y-4">
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Current balance</span>
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Current balance
+          </span>
           <div
             className={`text-2xl font-bold tabular-nums mt-1 ${
               ledger === "deposit"
@@ -1997,13 +2293,22 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
             </div>
           ) : ledgerPayments.length === 0 ? (
             <div className="text-center py-6 rounded-xl border-2 border-dashed border-border/80 bg-muted/10">
-              <Icon name="Receipt" size={28} className="text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">No transactions yet</p>
+              <Icon
+                name="Receipt"
+                size={28}
+                className="text-muted-foreground mx-auto mb-2"
+              />
+              <p className="text-sm text-muted-foreground">
+                No transactions yet
+              </p>
             </div>
           ) : (
             <div className="space-y-2 max-h-52 overflow-y-auto">
               {ledgerPayments.map((p) => {
-                const { text, className } = formatTransactionAmount(p.payment_type, p.payment_amount);
+                const { text, className } = formatTransactionAmount(
+                  p.payment_type,
+                  p.payment_amount,
+                );
                 const notes = p.notes ?? p.payment_notes ?? "";
                 return (
                   <div
@@ -2012,7 +2317,11 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap min-w-0">
-                        <span className={`font-bold tabular-nums shrink-0 ${className}`}>{text}</span>
+                        <span
+                          className={`font-bold tabular-nums shrink-0 ${className}`}
+                        >
+                          {text}
+                        </span>
                         <span
                           className={`text-xs px-2.5 py-1 rounded-lg font-semibold border ${getTransactionBadgeClass(p.payment_type)}`}
                         >
@@ -2025,14 +2334,23 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                         )}
                       </div>
                       {notes && (
-                        <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2" title={notes}>
+                        <p
+                          className="text-xs text-muted-foreground mt-1.5 line-clamp-2"
+                          title={notes}
+                        >
                           {notes}
                         </p>
                       )}
                     </div>
                     {p.payment_type !== "bill" && (
                       <div className="flex gap-1 shrink-0">
-                        <Button variant="outline" size="sm" iconName="Pencil" iconSize={12} onClick={() => handleEditPayment(p)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          iconName="Pencil"
+                          iconSize={12}
+                          onClick={() => handleEditPayment(p)}
+                        >
                           Edit
                         </Button>
                         <Button
