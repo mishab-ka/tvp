@@ -10,6 +10,7 @@ import {
   PAYMENT_TYPES_REQUIRING_ACCOUNT,
   getPaymentTypeLabel,
 } from "../../../utils/accounts";
+import WeekSelector from "../../../pages/hissab-accounting-generator/components/WeekSelector";
 import {
   calculatePreviousWeek,
   calculateWeekFromDate,
@@ -109,7 +110,8 @@ const TransactionModal = ({
               onChange={(v) => {
                 const newType = v ?? form.paymentType;
                 const updates = { ...form, paymentType: newType };
-                if ((newType === "penalty_other" || newType === "accident_due") && (!form.weekStart || !form.weekEnd)) {
+                const needsWeek = newType === "penalty_other" || newType === "accident_due" || newType === "penalty_paid";
+                if (needsWeek && (!form.weekStart || !form.weekEnd)) {
                   updates.weekStart = defaultWeek.weekStart;
                   updates.weekEnd = defaultWeek.weekEnd;
                 }
@@ -127,6 +129,17 @@ const TransactionModal = ({
                 onChange={(v) => setForm({ ...form, account: v ?? "" })}
                 placeholder="Select account"
               />
+            )}
+            {ledger === "penalty" && form.paymentType === "penalty_paid" && (
+              <div className="md:col-span-2 space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Which week&apos;s bill is this payment for? (Drivers typically pay the previous week&apos;s bill.)
+                </p>
+                <WeekSelector
+                  value={form.weekStart && form.weekEnd ? { weekStart: form.weekStart, weekEnd: form.weekEnd } : defaultWeek}
+                  onChange={(week) => setForm((f) => ({ ...f, weekStart: week.weekStart, weekEnd: week.weekEnd }))}
+                />
+              </div>
             )}
             {ledger === "penalty" && (form.paymentType === "penalty_other" || form.paymentType === "accident_due") && (
               <>
@@ -160,12 +173,17 @@ const TransactionModal = ({
               required
             />
             <Input
-              label="Date"
+              label={ledger === "penalty" && form.paymentType === "penalty_paid" ? "Date paid" : "Date"}
               type="date"
               value={form.paymentDate}
               onChange={(e) => setForm({ ...form, paymentDate: e.target.value })}
               required
             />
+            {ledger === "penalty" && form.paymentType === "penalty_paid" && (
+              <p className="text-xs text-muted-foreground -mt-2 md:col-span-2">
+                When the driver actually paid (for your records). The week above is which bill this payment applies to.
+              </p>
+            )}
             <Input
               label="Payment Method"
               placeholder="Cash, UPI, Bank Transfer, etc."
@@ -208,7 +226,7 @@ const TransactionModal = ({
               disabled={
                 !form.paymentAmount ||
                 (PAYMENT_TYPES_REQUIRING_ACCOUNT.includes(form.paymentType) && !form.account) ||
-                ((form.paymentType === "penalty_other" || form.paymentType === "accident_due") && (!form.weekStart || !form.weekEnd)) ||
+                ((form.paymentType === "penalty_other" || form.paymentType === "accident_due" || form.paymentType === "penalty_paid") && (!form.weekStart || !form.weekEnd)) ||
                 submitting
               }
               className={

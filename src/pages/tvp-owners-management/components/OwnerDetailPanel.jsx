@@ -16,6 +16,7 @@ import {
   getTotalOutstandingBalance,
   getTVPOwnerDetails,
   updateBill,
+  getDriverWeekSummary,
 } from "../../../lib/tvpManagementAPI";
 import { supabase } from "../../../lib/supabase";
 import {
@@ -113,6 +114,10 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
   const [editingBill, setEditingBill] = useState(null);
   const [showBillEditModal, setShowBillEditModal] = useState(false);
   const [billEditLoading, setBillEditLoading] = useState(false);
+  const defaultWeek = useMemo(() => calculatePreviousWeek(), []);
+  const [financialWeek, setFinancialWeek] = useState(() => calculatePreviousWeek());
+  const [weekSummary, setWeekSummary] = useState({ totalBillForWeek: 0, outstandingForWeek: 0 });
+  const [weekSummaryLoading, setWeekSummaryLoading] = useState(false);
   const paymentWeekOptions = useMemo(() => {
     const formatWeekLabel = (weekStart) => {
       const d = new Date(weekStart);
@@ -163,6 +168,28 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
       loadPayments();
     }
   }, [owner?.id, activeTab]);
+
+  useEffect(() => {
+    if (!owner?.id || !financialWeek?.weekStart || !financialWeek?.weekEnd) {
+      setWeekSummary({ totalBillForWeek: 0, outstandingForWeek: 0 });
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setWeekSummaryLoading(true);
+      try {
+        const summary = await getDriverWeekSummary(owner.id, financialWeek.weekStart, financialWeek.weekEnd);
+        if (!cancelled) setWeekSummary(summary);
+      } catch (err) {
+        console.error("Error loading week summary:", err);
+        if (!cancelled) setWeekSummary({ totalBillForWeek: 0, outstandingForWeek: 0 });
+      } finally {
+        if (!cancelled) setWeekSummaryLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [owner?.id, financialWeek?.weekStart, financialWeek?.weekEnd]);
 
   const loadBills = async () => {
     if (!owner?.id) return;
@@ -812,15 +839,13 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
     const isEditing = Boolean(editingPaymentId);
     try {
       setPaymentFormSubmitting(true);
+      // For Paid: week = which week's bill they're paying (from WeekSelector). Date = when they paid.
       const weekFromDate = formData.paymentDate
         ? calculateWeekFromDate(formData.paymentDate)
         : null;
-      const weekStart = (formData.paymentType === "penalty_other" || formData.paymentType === "accident_due") && formData.weekStart && formData.weekEnd
-        ? formData.weekStart
-        : weekFromDate?.weekStart;
-      const weekEnd = (formData.paymentType === "penalty_other" || formData.paymentType === "accident_due") && formData.weekStart && formData.weekEnd
-        ? formData.weekEnd
-        : weekFromDate?.weekEnd;
+      const useFormWeek = (formData.paymentType === "penalty_other" || formData.paymentType === "accident_due" || formData.paymentType === "penalty_paid") && formData.weekStart && formData.weekEnd;
+      const weekStart = useFormWeek ? formData.weekStart : weekFromDate?.weekStart;
+      const weekEnd = useFormWeek ? formData.weekEnd : weekFromDate?.weekEnd;
 
       if (isEditing) {
         await updateDriverPayment(editingPaymentId, owner.id, {
@@ -982,9 +1007,111 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
     return totals;
   }, [payments]);
 
+  const formatWeekLabel = (weekStart, weekEnd) => {
+    if (!weekStart || !weekEnd) return "";
+    const s = new Date(weekStart);
+    const e = new Date(weekEnd);
+    return `${s.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} – ${e.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  };
+
   const renderFinancialTab = () => (
     <div className="space-y-6">
-      {/* Financial Summary */}
+      {/* Week selector: same as Paid transaction week — Total bill & Outstanding for this week */}
+      <div className="bg-muted/20 border border-border rounded-lg p-4">
+        <h3 className="text-sm font-medium text-foreground mb-3">
+          For selected week (same as &quot;Paid&quot; transaction week)
+        </h3>
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setFinancialWeek(calculatePreviousWeek())}
+            iconName="Calendar"
+            iconSize={14}
+            iconPosition="left"
+          >
+            Previous week
+          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                const d = new Date(financialWeek.weekStart);
+                d.setDate(d.getDate() - 7);
+                const y = d.getFullYear(), m = d.getMonth() + 1, day = d.getDate();
+                const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                setFinancialWeek(calculateWeekFromDate(dateStr));
+              }}
+              iconName="ChevronLeft"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                const d = new Date(financialWeek.weekStart);
+                d.setDate(d.getDate() + 7);
+                const y = d.getFullYear(), m = d.getMonth() + 1, day = d.getDate();
+                const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                setFinancialWeek(calculateWeekFromDate(dateStr));
+              }}
+              iconName="ChevronRight"
+            />
+          </div>
+          <Input
+            type="date"
+            value={financialWeek?.weekStart ?? ""}
+            onChange={(e) => {
+              const v = e?.target?.value;
+              if (v) setFinancialWeek(calculateWeekFromDate(v));
+            }}
+            className="w-40"
+          />
+          <span className="text-sm text-muted-foreground">
+            {formatWeekLabel(financialWeek?.weekStart, financialWeek?.weekEnd)}
+          </span>
+        </div>
+        {weekSummaryLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+            Loading week summary…
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white dark:bg-card border border-border p-4 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Total bill (this week)</span>
+                <Icon name="Receipt" size={16} className="text-primary" />
+              </div>
+              <div className="text-xl font-bold text-foreground">
+                {formatCurrency(weekSummary?.totalBillForWeek ?? 0)}
+              </div>
+            </div>
+            <div className="bg-white dark:bg-card border border-border p-4 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Outstanding (this week)</span>
+                <Icon
+                  name="AlertCircle"
+                  size={16}
+                  className={(weekSummary?.outstandingForWeek ?? 0) > 0 ? "text-error" : "text-emerald-600 dark:text-emerald-400"}
+                />
+              </div>
+              <div
+                className={`text-xl font-bold ${
+                  (weekSummary?.outstandingForWeek ?? 0) > 0 ? "text-error" : "text-emerald-600 dark:text-emerald-400"
+                }`}
+              >
+                {formatCurrency(weekSummary?.outstandingForWeek ?? 0)}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Financial Summary (all-time) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white border border-border p-4 rounded-lg">
           <div className="flex items-center justify-between mb-2">

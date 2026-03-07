@@ -1301,6 +1301,11 @@ export const createDriverPayment = async (paymentData) => {
         throw new Error("Week start and week end are required for this transaction type");
       }
     }
+    if (paymentType === "penalty_paid") {
+      if (!paymentData.weekStart || !paymentData.weekEnd) {
+        throw new Error("Week is required for Paid so the amount is applied to that week's bill balance");
+      }
+    }
     const requiresAccount = ["paid", "refund", "deposit_due", "deposit_refund", "deposit_paid", "penalty_due", "penalty_refund", "penalty_paid", "accident_paid"];
     if (requiresAccount.includes(paymentType) && !paymentData.account) {
       throw new Error("Account is required for this transaction type");
@@ -1824,27 +1829,80 @@ export const getBillSummaryStatistics = async (opts = {}) => {
   }
 };
 
+// Per-driver week summary: total bill for that week and outstanding for that week (for profile "paid week" view)
+export const getDriverWeekSummary = async (driverId, dateFrom, dateTo) => {
+  if (!driverId || !dateFrom || !dateTo) {
+    return { totalBillForWeek: 0, outstandingForWeek: 0 };
+  }
+  try {
+    const { data: bills } = await supabase
+      .from("tvp_driver_bills")
+      .select("current_os, week_start, week_end")
+      .eq("driver_id", driverId)
+      .not("week_start", "is", null)
+      .not("week_end", "is", null)
+      .lte("week_start", dateTo)
+      .gte("week_end", dateFrom);
+
+    const totalBillForWeek = (bills || []).reduce((sum, b) => sum + Number(b?.current_os || 0), 0);
+
+    const { data: payments } = await supabase
+      .from("tvp_driver_payments")
+      .select("payment_type, payment_amount, week_start, week_end, payment_date")
+      .eq("driver_id", driverId);
+
+    const overlapsWeek = (row) => {
+      if (row?.week_start && row?.week_end) {
+        return row.week_start <= dateTo && row.week_end >= dateFrom;
+      }
+      return row?.payment_date >= dateFrom && row?.payment_date <= dateTo;
+    };
+
+    let paidSum = 0;
+    let dueSum = 0;
+    (payments || []).forEach((row) => {
+      if (!overlapsWeek(row)) return;
+      const amt = Number(row?.payment_amount || 0);
+      if (["paid", "refund", "penalty_refund", "penalty_paid"].includes(row?.payment_type)) {
+        paidSum += amt;
+      } else if (["due", "penalty_due"].includes(row?.payment_type)) {
+        dueSum += amt;
+      }
+    });
+
+    const outstandingForWeek = Math.max(0, totalBillForWeek - dueSum - paidSum);
+    return { totalBillForWeek, outstandingForWeek };
+  } catch (error) {
+    console.error("Error getting driver week summary:", error);
+    return { totalBillForWeek: 0, outstandingForWeek: 0 };
+  }
+};
+
 // Total amount collected per account (paid payments only), across all drivers
 // Only counts payments where account was explicitly selected (LetzRyd, Tawaaq Fleet, Cash In hand)
-// Optional { dateFrom, dateTo }: filter by payment_date (selected week) - only payments in that week are shown
+// Optional { dateFrom, dateTo }: when provided, filter by week (payments attributed to that week via week_start/week_end, else payment_date in range)
 export const getPaymentsSummaryByAccount = async (opts = {}) => {
   try {
     const { dateFrom, dateTo } = opts;
-    let q = supabase
+    const q = supabase
       .from("tvp_driver_payments")
-      .select("account, payment_amount")
+      .select("account, payment_amount, week_start, week_end, payment_date")
       .in("payment_type", ["paid", "penalty_paid"]);
-
-    if (dateFrom) q = q.gte("payment_date", dateFrom);
-    if (dateTo) q = q.lte("payment_date", dateTo);
 
     const { data, error } = await q;
 
     if (error) throw error;
 
     const totals = { letzryd: 0, tawaaq_fleet: 0, cash_in_hand: 0 };
+    const overlapsWeek = (row) => {
+      if (!dateFrom || !dateTo) return true;
+      if (row?.week_start && row?.week_end) {
+        return row.week_start <= dateTo && row.week_end >= dateFrom;
+      }
+      return row?.payment_date >= dateFrom && row?.payment_date <= dateTo;
+    };
     (data || []).forEach((row) => {
-      // Only count payments where account was explicitly selected as one of our three
+      if (dateFrom && dateTo && !overlapsWeek(row)) return;
       const k = row?.account;
       if (k && totals[k] !== undefined) {
         totals[k] += Number(row?.payment_amount) || 0;
