@@ -3,7 +3,7 @@ import Button from "../../../components/ui/Button";
 import Input from "../../../components/ui/Input";
 import Icon from "../../../components/AppIcon";
 import WeekSelector, { calculatePreviousWeek } from "../../hissab-accounting-generator/components/WeekSelector";
-import { addDriverPenaltyAmount } from "../../../lib/tvpManagementAPI";
+import { createDriverPayment } from "../../../lib/tvpManagementAPI";
 
 const AddPenaltyModal = ({
   isOpen,
@@ -37,10 +37,21 @@ const AddPenaltyModal = ({
       setError("Please enter a valid amount (greater than 0).");
       return;
     }
+    if (!weekRange?.weekStart || !weekRange?.weekEnd) {
+      setError("Please select a week.");
+      return;
+    }
     setError("");
     setSubmittingLocal(true);
     try {
-      await addDriverPenaltyAmount(driver.id, num);
+      await createDriverPayment({
+        driverId: driver.id,
+        paymentType: "accident_due",
+        paymentAmount: num,
+        weekStart: weekRange.weekStart,
+        weekEnd: weekRange.weekEnd,
+        notes: notes?.trim() || undefined,
+      });
       onSubmit?.();
       onClose();
     } catch (err) {
@@ -65,9 +76,9 @@ const AddPenaltyModal = ({
               <Icon name="AlertTriangle" size={20} className="text-warning" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Add accident penalty</h2>
+              <h2 className="text-lg font-semibold text-foreground">Add penalty (by week)</h2>
               <p className="text-xs text-muted-foreground">
-                Penalty will be added to the selected week when generating the bill. Driver: {driver?.name || driver?.tvpId}
+                Select the week below; this penalty will show on the bill when you generate a bill for that week. Driver: {driver?.name || driver?.tvpId}
               </p>
             </div>
           </div>
@@ -83,6 +94,7 @@ const AddPenaltyModal = ({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="rounded-lg border border-border p-4 bg-muted/10">
+            <p className="text-xs font-medium text-muted-foreground mb-2">Week for this penalty (bill week)</p>
             <WeekSelector value={weekRange} onChange={setWeekRange} />
           </div>
 
