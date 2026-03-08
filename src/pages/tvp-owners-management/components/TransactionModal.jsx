@@ -46,14 +46,18 @@ const TransactionModal = ({
 
   React.useEffect(() => {
     if (isOpen) {
-      const week = initialForm.weekStart && initialForm.weekEnd
-        ? { weekStart: initialForm.weekStart, weekEnd: initialForm.weekEnd }
-        : defaultWeek;
+      const week =
+        initialForm.weekStart && initialForm.weekEnd
+          ? { weekStart: initialForm.weekStart, weekEnd: initialForm.weekEnd }
+          : defaultWeek;
       setForm({
-        paymentType: initialForm.paymentType ?? (ledger === "deposit" ? "deposit_due" : "penalty_due"),
+        paymentType:
+          initialForm.paymentType ??
+          (ledger === "deposit" ? "deposit_due" : "penalty_due"),
         account: initialForm.account ?? "",
         paymentAmount: initialForm.paymentAmount ?? "",
-        paymentDate: initialForm.paymentDate ?? new Date().toISOString().split("T")[0],
+        paymentDate:
+          initialForm.paymentDate ?? new Date().toISOString().split("T")[0],
         weekStart: initialForm.weekStart ?? week.weekStart ?? "",
         weekEnd: initialForm.weekEnd ?? week.weekEnd ?? "",
         paymentMethod: initialForm.paymentMethod ?? "",
@@ -62,15 +66,32 @@ const TransactionModal = ({
         screenshot: null,
       });
     }
-  }, [isOpen, ledger, defaultWeek, initialForm.paymentType, initialForm.account, initialForm.paymentAmount, initialForm.paymentDate, initialForm.weekStart, initialForm.weekEnd, initialForm.paymentMethod, initialForm.referenceNumber, initialForm.notes]);
+  }, [
+    isOpen,
+    ledger,
+    defaultWeek,
+    initialForm.paymentType,
+    initialForm.account,
+    initialForm.paymentAmount,
+    initialForm.paymentDate,
+    initialForm.weekStart,
+    initialForm.weekEnd,
+    initialForm.paymentMethod,
+    initialForm.referenceNumber,
+    initialForm.notes,
+  ]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit(form);
   };
 
-  const options = ledger === "deposit" ? DEPOSIT_LEDGER_OPTIONS : PENALTY_LEDGER_OPTIONS;
-  const title = ledger === "deposit" ? "Deposit Transaction" : "Penalty and Refund Transaction";
+  const options =
+    ledger === "deposit" ? DEPOSIT_LEDGER_OPTIONS : PENALTY_LEDGER_OPTIONS;
+  const title =
+    ledger === "deposit"
+      ? "Deposit Transaction"
+      : "Penalty and Refund Transaction";
 
   return (
     <div
@@ -78,18 +99,28 @@ const TransactionModal = ({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl overflow-hidden"
+        className="w-full max-w-4xl rounded-xl border border-border bg-card shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-6 py-4 bg-muted/30">
           <div className="flex items-center gap-2">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${ledger === "deposit" ? "bg-primary/20" : "bg-error/20"}`}>
-              <Icon name="CreditCard" size={20} className={ledger === "deposit" ? "text-primary" : "text-error"} />
+            <div
+              className={`w-10 h-10 rounded-lg flex items-center justify-center ${ledger === "deposit" ? "bg-primary/20" : "bg-error/20"}`}
+            >
+              <Icon
+                name="CreditCard"
+                size={20}
+                className={ledger === "deposit" ? "text-primary" : "text-error"}
+              />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">{isEdit ? "Edit" : "Add"} {title}</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                {isEdit ? "Edit" : "Add"} {title}
+              </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {ledger === "deposit" ? "Due reduces deposit; Refund/Paid add to deposit" : "Due increases outstanding; Paid/Refund reduce outstanding. Other: add to bill for selected week."}
+                {ledger === "deposit"
+                  ? "Due reduces deposit; Refund/Paid add to deposit"
+                  : "Due increases outstanding; Paid/Refund reduce outstanding. Other: add to bill for selected week."}
               </p>
             </div>
           </div>
@@ -110,7 +141,10 @@ const TransactionModal = ({
               onChange={(v) => {
                 const newType = v ?? form.paymentType;
                 const updates = { ...form, paymentType: newType };
-                const needsWeek = newType === "penalty_other" || newType === "accident_due" || newType === "penalty_paid";
+                const needsWeek =
+                  newType === "penalty_other" ||
+                  newType === "accident_due" ||
+                  newType === "penalty_paid";
                 if (needsWeek && (!form.weekStart || !form.weekEnd)) {
                   updates.weekStart = defaultWeek.weekStart;
                   updates.weekEnd = defaultWeek.weekEnd;
@@ -133,68 +167,100 @@ const TransactionModal = ({
             {ledger === "penalty" && form.paymentType === "penalty_paid" && (
               <div className="md:col-span-2 space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  Which week&apos;s bill is this payment for? (Drivers typically pay the previous week&apos;s bill.)
+                  Which week&apos;s bill is this payment for? (Drivers typically
+                  pay the previous week&apos;s bill.)
                 </p>
                 <WeekSelector
-                  value={form.weekStart && form.weekEnd ? { weekStart: form.weekStart, weekEnd: form.weekEnd } : defaultWeek}
-                  onChange={(week) => setForm((f) => ({ ...f, weekStart: week.weekStart, weekEnd: week.weekEnd }))}
+                  value={
+                    form.weekStart && form.weekEnd
+                      ? { weekStart: form.weekStart, weekEnd: form.weekEnd }
+                      : defaultWeek
+                  }
+                  onChange={(week) =>
+                    setForm((f) => ({
+                      ...f,
+                      weekStart: week.weekStart,
+                      weekEnd: week.weekEnd,
+                    }))
+                  }
                 />
               </div>
             )}
-            {ledger === "penalty" && (form.paymentType === "penalty_other" || form.paymentType === "accident_due") && (
-              <>
-                <Input
-                  label="Week start (Monday)"
-                  type="date"
-                  value={form.weekStart}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    const week = calculateWeekFromDate(v);
-                    setForm((f) => ({ ...f, weekStart: week.weekStart, weekEnd: week.weekEnd }));
-                  }}
-                  required
-                />
-                <Input
-                  label="Week end (Sunday)"
-                  type="date"
-                  value={form.weekEnd}
-                  onChange={(e) => setForm({ ...form, weekEnd: e.target.value })}
-                  required
-                />
-              </>
-            )}
+            {ledger === "penalty" &&
+              (form.paymentType === "penalty_other" ||
+                form.paymentType === "accident_due") && (
+                <>
+                  <Input
+                    label="Week start (Monday)"
+                    type="date"
+                    value={form.weekStart}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      const week = calculateWeekFromDate(v);
+                      setForm((f) => ({
+                        ...f,
+                        weekStart: week.weekStart,
+                        weekEnd: week.weekEnd,
+                      }));
+                    }}
+                    required
+                  />
+                  <Input
+                    label="Week end (Sunday)"
+                    type="date"
+                    value={form.weekEnd}
+                    onChange={(e) =>
+                      setForm({ ...form, weekEnd: e.target.value })
+                    }
+                    required
+                  />
+                </>
+              )}
             <Input
               label="Amount (₹)"
               type="number"
               min="0"
               step="0.01"
               value={form.paymentAmount}
-              onChange={(e) => setForm({ ...form, paymentAmount: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, paymentAmount: e.target.value })
+              }
               required
             />
             <Input
-              label={ledger === "penalty" && form.paymentType === "penalty_paid" ? "Date paid" : "Date"}
+              label={
+                ledger === "penalty" && form.paymentType === "penalty_paid"
+                  ? "Date paid"
+                  : "Date"
+              }
               type="date"
               value={form.paymentDate}
-              onChange={(e) => setForm({ ...form, paymentDate: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, paymentDate: e.target.value })
+              }
               required
             />
             {ledger === "penalty" && form.paymentType === "penalty_paid" && (
               <p className="text-xs text-muted-foreground -mt-2 md:col-span-2">
-                When the driver actually paid (for your records). The week above is which bill this payment applies to.
+                When the driver actually paid (for your records). The week above
+                is which bill this payment applies to.
               </p>
             )}
             <Input
               label="Payment Method"
               placeholder="Cash, UPI, Bank Transfer, etc."
               value={form.paymentMethod}
-              onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, paymentMethod: e.target.value })
+              }
             />
             <Input
               label="Reference Number"
               placeholder="Transaction ID, Receipt No, etc."
               value={form.referenceNumber}
-              onChange={(e) => setForm({ ...form, referenceNumber: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, referenceNumber: e.target.value })
+              }
             />
           </div>
           <Input
@@ -204,16 +270,22 @@ const TransactionModal = ({
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
           />
           <div>
-            <label className="text-sm font-medium text-foreground mb-2 block">Screenshot (Optional)</label>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Screenshot (Optional)
+            </label>
             <input
               ref={screenshotRef}
               type="file"
               accept="image/*"
-              onChange={(e) => setForm({ ...form, screenshot: e.target.files?.[0] || null })}
+              onChange={(e) =>
+                setForm({ ...form, screenshot: e.target.files?.[0] || null })
+              }
               className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {form.screenshot && (
-              <p className="text-xs text-muted-foreground mt-1">Selected: {form.screenshot.name}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Selected: {form.screenshot.name}
+              </p>
             )}
           </div>
           <div className="flex justify-end gap-2 pt-2">
@@ -225,25 +297,37 @@ const TransactionModal = ({
               variant="default"
               disabled={
                 !form.paymentAmount ||
-                (PAYMENT_TYPES_REQUIRING_ACCOUNT.includes(form.paymentType) && !form.account) ||
-                ((form.paymentType === "penalty_other" || form.paymentType === "accident_due" || form.paymentType === "penalty_paid") && (!form.weekStart || !form.weekEnd)) ||
+                (PAYMENT_TYPES_REQUIRING_ACCOUNT.includes(form.paymentType) &&
+                  !form.account) ||
+                ((form.paymentType === "penalty_other" ||
+                  form.paymentType === "accident_due" ||
+                  form.paymentType === "penalty_paid") &&
+                  (!form.weekStart || !form.weekEnd)) ||
                 submitting
               }
               className={
                 ["deposit_due", "deposit"].includes(form.paymentType)
                   ? "bg-primary hover:bg-primary/90"
-                  : ["deposit_refund", "deposit_paid"].includes(form.paymentType)
-                  ? "bg-amber-600 hover:bg-amber-700"
-                  : ["penalty_refund"].includes(form.paymentType)
-                  ? "bg-blue-600 hover:bg-blue-700"
-                  : ["penalty_due", "due", "accident_due"].includes(form.paymentType)
-                  ? "bg-amber-600 hover:bg-amber-700"
-                  : form.paymentType === "penalty_other"
-                  ? "bg-muted hover:bg-muted/90 text-foreground"
-                  : "bg-emerald-600 hover:bg-emerald-700"
+                  : ["deposit_refund", "deposit_paid"].includes(
+                        form.paymentType,
+                      )
+                    ? "bg-amber-600 hover:bg-amber-700"
+                    : ["penalty_refund"].includes(form.paymentType)
+                      ? "bg-blue-600 hover:bg-blue-700"
+                      : ["penalty_due", "due", "accident_due"].includes(
+                            form.paymentType,
+                          )
+                        ? "bg-amber-600 hover:bg-amber-700"
+                        : form.paymentType === "penalty_other"
+                          ? "bg-muted hover:bg-muted/90 text-foreground"
+                          : "bg-emerald-600 hover:bg-emerald-700"
               }
             >
-              {submitting ? "Saving…" : (isEdit ? "Save changes" : `Add ${getPaymentTypeLabel(form.paymentType)?.split(" (")[0] || "Transaction"}`)}
+              {submitting
+                ? "Saving…"
+                : isEdit
+                  ? "Save changes"
+                  : `Add ${getPaymentTypeLabel(form.paymentType)?.split(" (")[0] || "Transaction"}`}
             </Button>
           </div>
         </form>

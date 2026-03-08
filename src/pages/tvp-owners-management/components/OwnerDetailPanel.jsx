@@ -43,6 +43,7 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
   const [documentAction, setDocumentAction] = useState(null);
   const [documentError, setDocumentError] = useState(null);
   const [documentMessage, setDocumentMessage] = useState(null);
+  const [viewingTransaction, setViewingTransaction] = useState(null);
   const fileInputRefs = useRef({});
 
   if (!owner) {
@@ -1344,7 +1345,7 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
           </div>
         </div>
 
-        {/* Transactions */}
+        {/* Transactions - all with scrollable list + View for details */}
         <div className="rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden">
           <div className="p-4 border-b border-border/60 flex flex-wrap items-center justify-between gap-3 bg-muted/20">
             <div className="flex items-center gap-3">
@@ -1356,29 +1357,20 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                   Transactions
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Preview (latest 5)
+                  All transactions · scroll to see more
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="default"
-                size="sm"
-                iconName="Plus"
-                iconPosition="left"
-                iconSize={14}
-                onClick={() => setActiveTab("payments")}
-              >
-                Add / Edit
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setActiveTab("payments")}
-              >
-                View all
-              </Button>
-            </div>
+            <Button
+              variant="default"
+              size="sm"
+              iconName="Plus"
+              iconPosition="left"
+              iconSize={14}
+              onClick={() => setActiveTab("payments")}
+            >
+              Add / Edit
+            </Button>
           </div>
 
           <div className="p-4">
@@ -1404,8 +1396,11 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                 </p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {payments.slice(0, 5).map((payment) => {
+              <div
+                className="space-y-2 max-h-[320px] overflow-y-auto pr-1"
+                style={{ scrollbarGutter: "stable" }}
+              >
+                {payments.map((payment) => {
                   const { text, className } = formatTransactionAmount(
                     payment.payment_type,
                     payment.payment_amount,
@@ -1463,9 +1458,9 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                           variant="outline"
                           size="sm"
                           className="shrink-0"
-                          onClick={() => setActiveTab("payments")}
+                          onClick={() => setViewingTransaction(payment)}
                         >
-                          Open
+                          View
                         </Button>
                       </div>
                     </div>
@@ -2286,6 +2281,9 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
           <div className="flex items-center gap-2 mb-3">
             <Icon name="History" size={16} className="text-primary shrink-0" />
             <span className="text-sm font-bold text-foreground">History</span>
+            <span className="text-xs text-muted-foreground">
+              All transactions · scroll to see more
+            </span>
           </div>
           {loading ? (
             <div className="py-6 text-center rounded-xl bg-muted/20">
@@ -2303,7 +2301,10 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
               </p>
             </div>
           ) : (
-            <div className="space-y-2 max-h-52 overflow-y-auto">
+            <div
+              className="space-y-2 max-h-[320px] overflow-y-auto pr-1"
+              style={{ scrollbarGutter: "stable" }}
+            >
               {ledgerPayments.map((p) => {
                 const { text, className } = formatTransactionAmount(
                   p.payment_type,
@@ -2342,29 +2343,38 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
                         </p>
                       )}
                     </div>
-                    {p.payment_type !== "bill" && (
-                      <div className="flex gap-1 shrink-0">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          iconName="Pencil"
-                          iconSize={12}
-                          onClick={() => handleEditPayment(p)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          iconName="Trash2"
-                          iconSize={12}
-                          className="text-destructive border-destructive/50 hover:bg-destructive/10"
-                          onClick={() => handleDeletePayment(p.id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex gap-1 shrink-0 items-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setViewingTransaction(p)}
+                      >
+                        View
+                      </Button>
+                      {p.payment_type !== "bill" && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            iconName="Pencil"
+                            iconSize={12}
+                            onClick={() => handleEditPayment(p)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            iconName="Trash2"
+                            iconSize={12}
+                            className="text-destructive border-destructive/50 hover:bg-destructive/10"
+                            onClick={() => handleDeletePayment(p.id)}
+                          >
+                            Delete
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -2523,8 +2533,146 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
     }
   };
 
+  const renderTransactionDetailModal = () => {
+    const p = viewingTransaction;
+    if (!p) return null;
+    const { text, className } = formatTransactionAmount(
+      p.payment_type,
+      p.payment_amount,
+    );
+    const notes = p.notes ?? p.payment_notes ?? "";
+    const weekLabel =
+      p.week_start && p.week_end
+        ? `${new Date(p.week_start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} – ${new Date(p.week_end).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+        : null;
+    return (
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4"
+        onClick={() => setViewingTransaction(null)}
+      >
+        <div
+          className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-border px-5 py-4 bg-muted/30">
+            <h2 className="text-lg font-semibold text-foreground">
+              Transaction details
+            </h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setViewingTransaction(null)}
+              iconName="X"
+            />
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-sm text-muted-foreground">Type</span>
+              <span
+                className={`text-xs px-2.5 py-1 rounded-lg font-semibold border ${getTransactionBadgeClass(p.payment_type)}`}
+              >
+                {getPaymentTypeLabel(p.payment_type) || p.payment_type}
+              </span>
+            </div>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-sm text-muted-foreground">Amount</span>
+              <span className={`text-lg font-bold tabular-nums ${className}`}>
+                {text}
+              </span>
+            </div>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-sm text-muted-foreground">Date</span>
+              <span className="text-sm font-medium text-foreground">
+                {new Date(p.payment_date).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </span>
+            </div>
+            {p.account != null && p.account !== "" && (
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-sm text-muted-foreground">Account</span>
+                <span className="text-sm font-medium text-foreground">
+                  {getAccountLabel(p.account)}
+                </span>
+              </div>
+            )}
+            {p.reference_number && (
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Reference number
+                </span>
+                <span className="text-sm font-medium text-foreground tabular-nums">
+                  {p.reference_number}
+                </span>
+              </div>
+            )}
+            {p.payment_method && (
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Payment method
+                </span>
+                <span className="text-sm font-medium text-foreground capitalize">
+                  {String(p.payment_method).replace(/_/g, " ")}
+                </span>
+              </div>
+            )}
+            {weekLabel && (
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-sm text-muted-foreground">Week</span>
+                <span className="text-sm font-medium text-foreground">
+                  {weekLabel}
+                </span>
+              </div>
+            )}
+            {notes && (
+              <div>
+                <span className="text-sm text-muted-foreground block mb-1">
+                  Notes
+                </span>
+                <p className="text-sm text-foreground bg-muted/30 rounded-lg p-3 border border-border">
+                  {notes}
+                </p>
+              </div>
+            )}
+            {p.screenshot_url && (
+              <div>
+                <span className="text-sm text-muted-foreground block mb-2">
+                  Screenshot
+                </span>
+                <a
+                  href={p.screenshot_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-lg border border-border overflow-hidden bg-muted/20 hover:opacity-90"
+                >
+                  <img
+                    src={p.screenshot_url}
+                    alt="Payment screenshot"
+                    className="w-full max-h-48 object-contain"
+                  />
+                </a>
+              </div>
+            )}
+          </div>
+          <div className="px-5 py-4 border-t border-border bg-muted/20 flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setViewingTransaction(null)}
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="h-full flex flex-col min-h-0">
+    <>
+      <div className="h-full flex flex-col min-h-0">
       {/* Header */}
       <div className="flex-shrink-0 px-5 py-4 border-b border-border bg-card">
         <div className="flex items-start justify-between gap-4">
@@ -2669,7 +2817,10 @@ const OwnerDetailPanel = ({ owner, onClose, onUpdate, onOpenAddPenalty }) => {
           loading={billEditLoading}
         />
       )}
-    </div>
+      </div>
+
+      {viewingTransaction && renderTransactionDetailModal()}
+    </>
   );
 };
 

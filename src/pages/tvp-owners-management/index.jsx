@@ -56,7 +56,7 @@ const TVPOwnersManagement = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
-  const [statsExpanded, setStatsExpanded] = useState(false); // Statistics dashboard fold state
+  const [driverListTab, setDriverListTab] = useState("active"); // "active" | "inactive" — Active drivers vs Inactive/Suspended
   const [ownerFormOpen, setOwnerFormOpen] = useState(false);
   const [ownerFormMode, setOwnerFormMode] = useState("create");
   const [ownerFormInitial, setOwnerFormInitial] = useState(null);
@@ -108,8 +108,16 @@ const TVPOwnersManagement = () => {
     };
   }, [selectedOwner]);
 
-  // Filter owners based on search and filters
+  // Tab-based list: active only vs non-active (inactive, suspended, pending, under_review)
+  const matchesTab = (owner) =>
+    driverListTab === "active"
+      ? owner?.status === "active"
+      : owner?.status !== "active";
+
+  // Filter owners based on tab, search and filters
   const filteredOwners = owners.filter((owner) => {
+    if (!matchesTab(owner)) return false;
+
     const matchesSearch =
       searchTerm === "" ||
       owner?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -205,10 +213,10 @@ const TVPOwnersManagement = () => {
     return filteredOwners.slice(start, start + pageSize);
   }, [filteredOwners, currentPage, pageSize]);
 
-  // Reset to page 1 when filters/search change
+  // Reset to page 1 when filters/search/tab change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, searchType, filters]);
+  }, [searchTerm, searchType, filters, driverListTab]);
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= totalPages) {
@@ -596,186 +604,173 @@ const TVPOwnersManagement = () => {
                     />
                   </div>
 
-                  {/* Statistics Dashboard - Collapsible */}
+                  {/* Statistics - Always visible */}
                   <div className="px-4 pb-2 pt-2">
-                    <div className="bg-card border border-border rounded-lg overflow-hidden">
-                      {/* Header - Always visible */}
+                    <div className="bg-card border border-border rounded-lg p-4">
+                      {/* Financial Totals */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                        <div className="bg-primary/10 p-3 rounded-lg border border-primary/30">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-muted-foreground">
+                              Total Drivers
+                            </span>
+                            <Icon
+                              name="Users"
+                              size={14}
+                              className="text-primary"
+                            />
+                          </div>
+                          <div className="text-xl font-bold text-primary">
+                            {ownerCounts.total || 0}
+                          </div>
+                        </div>
+
+                        <div className="bg-error/10 p-3 rounded-lg border border-error/30">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-muted-foreground">
+                              Total Outstanding
+                            </span>
+                            <Icon
+                              name="AlertCircle"
+                              size={14}
+                              className="text-error"
+                            />
+                          </div>
+                          <div className="text-xl font-bold text-error">
+                            {formatCurrency(
+                              ownerCounts.totalOutstanding || 0,
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="bg-success/10 p-3 rounded-lg border border-success/30">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-muted-foreground">
+                              Total Deposits
+                            </span>
+                            <Icon
+                              name="Wallet"
+                              size={14}
+                              className="text-success"
+                            />
+                          </div>
+                          <div className="text-xl font-bold text-success">
+                            {formatCurrency(ownerCounts.totalDeposit || 0)}
+                          </div>
+                        </div>
+
+                        <div className="bg-warning/10 p-3 rounded-lg border border-warning/30">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-muted-foreground">
+                              With Outstanding
+                            </span>
+                            <Icon
+                              name="AlertTriangle"
+                              size={14}
+                              className="text-warning"
+                            />
+                          </div>
+                          <div className="text-xl font-bold text-warning">
+                            {ownerCounts.outstanding_balance || 0}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Status breakdown */}
+                      <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+                        <div className="bg-muted/30 p-2 rounded-lg border border-border text-center">
+                          <div className="flex items-center justify-center space-x-1 mb-1">
+                            <div className="w-2 h-2 bg-success rounded-full"></div>
+                            <span className="text-xs text-muted-foreground">
+                              Active
+                            </span>
+                          </div>
+                          <div className="text-lg font-bold text-foreground">
+                            {ownerCounts.active || 0}
+                          </div>
+                        </div>
+
+                        <div className="bg-muted/30 p-2 rounded-lg border border-border text-center">
+                          <div className="flex items-center justify-center space-x-1 mb-1">
+                            <div className="w-2 h-2 bg-muted-foreground rounded-full"></div>
+                            <span className="text-xs text-muted-foreground">
+                              Inactive
+                            </span>
+                          </div>
+                          <div className="text-lg font-bold text-foreground">
+                            {ownerCounts.inactive || 0}
+                          </div>
+                        </div>
+
+                        <div className="bg-muted/30 p-2 rounded-lg border border-border text-center">
+                          <div className="flex items-center justify-center space-x-1 mb-1">
+                            <div className="w-2 h-2 bg-warning rounded-full"></div>
+                            <span className="text-xs text-muted-foreground">
+                              Pending
+                            </span>
+                          </div>
+                          <div className="text-lg font-bold text-foreground">
+                            {ownerCounts.pending || 0}
+                          </div>
+                        </div>
+
+                        <div className="bg-muted/30 p-2 rounded-lg border border-border text-center">
+                          <div className="flex items-center justify-center space-x-1 mb-1">
+                            <div className="w-2 h-2 bg-error rounded-full"></div>
+                            <span className="text-xs text-muted-foreground">
+                              Suspended
+                            </span>
+                          </div>
+                          <div className="text-lg font-bold text-foreground">
+                            {ownerCounts.suspended || 0}
+                          </div>
+                        </div>
+
+                        <div className="bg-muted/30 p-2 rounded-lg border border-border text-center">
+                          <div className="flex items-center justify-center space-x-1 mb-1">
+                            <div className="w-2 h-2 bg-warning rounded-full"></div>
+                            <span className="text-xs text-muted-foreground">
+                              Review
+                            </span>
+                          </div>
+                          <div className="text-lg font-bold text-foreground">
+                            {ownerCounts.under_review || 0}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tabs: Active drivers | Inactive / Suspended */}
+                  <div className="flex-shrink-0 px-4 pb-2">
+                    <div className="flex rounded-lg border border-border bg-muted/20 p-1 w-full max-w-md">
                       <button
-                        onClick={() => setStatsExpanded(!statsExpanded)}
-                        className="w-full p-3 flex items-center justify-between hover:bg-muted/30 transition-colors"
+                        type="button"
+                        onClick={() => setDriverListTab("active")}
+                        className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                          driverListTab === "active"
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                        }`}
                       >
-                        <div className="flex items-center">
-                          <Icon
-                            name="BarChart3"
-                            size={18}
-                            className="mr-2 text-primary"
-                          />
-                          <span className="text-sm font-semibold text-foreground">
-                            Statistics
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-4">
-                          {/* Quick Stats Preview (shown when collapsed) */}
-                          {!statsExpanded && (
-                            <div className="hidden sm:flex items-center space-x-4 text-xs">
-                              <span className="text-primary font-medium">
-                                {ownerCounts.total} Total
-                              </span>
-                              <span className="text-success font-medium">
-                                {ownerCounts.active} Active
-                              </span>
-                              <span className="text-error font-medium">
-                                {formatCurrency(
-                                  ownerCounts.totalOutstanding || 0,
-                                )}{" "}
-                                OS
-                              </span>
-                            </div>
-                          )}
-                          <Icon
-                            name={statsExpanded ? "ChevronUp" : "ChevronDown"}
-                            size={16}
-                            className="text-muted-foreground"
-                          />
-                        </div>
+                        Active drivers ({ownerCounts.active || 0})
                       </button>
-
-                      {/* Expanded Content */}
-                      {statsExpanded && (
-                        <div className="p-4 pt-2 border-t border-border">
-                          {/* Financial Totals - Top Row */}
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-                            <div className="bg-primary/10 p-3 rounded-lg border border-primary/30">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs text-muted-foreground">
-                                  Total Drivers
-                                </span>
-                                <Icon
-                                  name="Users"
-                                  size={14}
-                                  className="text-primary"
-                                />
-                              </div>
-                              <div className="text-xl font-bold text-primary">
-                                {ownerCounts.total || 0}
-                              </div>
-                            </div>
-
-                            <div className="bg-error/10 p-3 rounded-lg border border-error/30">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs text-muted-foreground">
-                                  Total Outstanding
-                                </span>
-                                <Icon
-                                  name="AlertCircle"
-                                  size={14}
-                                  className="text-error"
-                                />
-                              </div>
-                              <div className="text-xl font-bold text-error">
-                                {formatCurrency(
-                                  ownerCounts.totalOutstanding || 0,
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="bg-success/10 p-3 rounded-lg border border-success/30">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs text-muted-foreground">
-                                  Total Deposits
-                                </span>
-                                <Icon
-                                  name="Wallet"
-                                  size={14}
-                                  className="text-success"
-                                />
-                              </div>
-                              <div className="text-xl font-bold text-success">
-                                {formatCurrency(ownerCounts.totalDeposit || 0)}
-                              </div>
-                            </div>
-
-                            <div className="bg-warning/10 p-3 rounded-lg border border-warning/30">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs text-muted-foreground">
-                                  With Outstanding
-                                </span>
-                                <Icon
-                                  name="AlertTriangle"
-                                  size={14}
-                                  className="text-warning"
-                                />
-                              </div>
-                              <div className="text-xl font-bold text-warning">
-                                {ownerCounts.outstanding_balance || 0}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Status Row */}
-                          <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-                            <div className="bg-muted/30 p-2 rounded-lg border border-border text-center">
-                              <div className="flex items-center justify-center space-x-1 mb-1">
-                                <div className="w-2 h-2 bg-success rounded-full"></div>
-                                <span className="text-xs text-muted-foreground">
-                                  Active
-                                </span>
-                              </div>
-                              <div className="text-lg font-bold text-foreground">
-                                {ownerCounts.active || 0}
-                              </div>
-                            </div>
-
-                            <div className="bg-muted/30 p-2 rounded-lg border border-border text-center">
-                              <div className="flex items-center justify-center space-x-1 mb-1">
-                                <div className="w-2 h-2 bg-muted-foreground rounded-full"></div>
-                                <span className="text-xs text-muted-foreground">
-                                  Inactive
-                                </span>
-                              </div>
-                              <div className="text-lg font-bold text-foreground">
-                                {ownerCounts.inactive || 0}
-                              </div>
-                            </div>
-
-                            <div className="bg-muted/30 p-2 rounded-lg border border-border text-center">
-                              <div className="flex items-center justify-center space-x-1 mb-1">
-                                <div className="w-2 h-2 bg-warning rounded-full"></div>
-                                <span className="text-xs text-muted-foreground">
-                                  Pending
-                                </span>
-                              </div>
-                              <div className="text-lg font-bold text-foreground">
-                                {ownerCounts.pending || 0}
-                              </div>
-                            </div>
-
-                            <div className="bg-muted/30 p-2 rounded-lg border border-border text-center">
-                              <div className="flex items-center justify-center space-x-1 mb-1">
-                                <div className="w-2 h-2 bg-error rounded-full"></div>
-                                <span className="text-xs text-muted-foreground">
-                                  Suspended
-                                </span>
-                              </div>
-                              <div className="text-lg font-bold text-foreground">
-                                {ownerCounts.suspended || 0}
-                              </div>
-                            </div>
-
-                            <div className="bg-muted/30 p-2 rounded-lg border border-border text-center">
-                              <div className="flex items-center justify-center space-x-1 mb-1">
-                                <div className="w-2 h-2 bg-warning rounded-full"></div>
-                                <span className="text-xs text-muted-foreground">
-                                  Review
-                                </span>
-                              </div>
-                              <div className="text-lg font-bold text-foreground">
-                                {ownerCounts.under_review || 0}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setDriverListTab("inactive")}
+                        className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                          driverListTab === "inactive"
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                        }`}
+                      >
+                        Inactive / Suspended (
+                        {(ownerCounts.inactive || 0) +
+                          (ownerCounts.pending || 0) +
+                          (ownerCounts.suspended || 0) +
+                          (ownerCounts.under_review || 0)}
+                        )
+                      </button>
                     </div>
                   </div>
 

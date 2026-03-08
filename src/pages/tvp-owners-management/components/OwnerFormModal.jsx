@@ -19,7 +19,6 @@ const categoryOptions = [
   { value: "double_driver", label: "Double Driver" },
 ];
 
-
 const documentFields = [
   { key: "aadharFront", label: "Aadhaar Card (Front)" },
   { key: "aadharBack", label: "Aadhaar Card (Back)" },
@@ -68,15 +67,15 @@ const OwnerFormModal = ({
 
   const handleUberPhotoAdd = (file) => {
     if (!file) return;
-    if (file.type && !file.type.startsWith('image/')) {
-      alert('Please upload an image file');
+    if (file.type && !file.type.startsWith("image/")) {
+      alert("Please upload an image file");
       return;
     }
-    setUberDriverPhotos(prev => [...prev, file]);
+    setUberDriverPhotos((prev) => [...prev, file]);
   };
 
   const handleUberPhotoRemove = (index) => {
-    setUberDriverPhotos(prev => prev.filter((_, i) => i !== index));
+    setUberDriverPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleUberPhotoRemoveExisting = (index, photoUrls) => {
@@ -95,11 +94,11 @@ const OwnerFormModal = ({
       (initialData?.vehicleNumbers && initialData.vehicleNumbers.length > 0
         ? initialData.vehicleNumbers
         : initialData?.vehicles?.map(
-            (v) => v?.plateNumber || v?.car_number || v?.carNumber || v
+            (v) => v?.plateNumber || v?.car_number || v?.carNumber || v,
           )) || [];
     const existingStrings = existing.filter((v) => v && String(v).trim());
     const notInApi = existingStrings.filter(
-      (v) => !fromApi.some((o) => String(o?.value).trim() === String(v).trim())
+      (v) => !fromApi.some((o) => String(o?.value).trim() === String(v).trim()),
     );
     const extra = notInApi.map((v) => ({
       value: String(v).trim(),
@@ -175,7 +174,7 @@ const OwnerFormModal = ({
         penaltyAmount:
           typeof initialData?.penaltyAmount === "number"
             ? initialData.penaltyAmount.toString()
-            : initialData?.penaltyAmount ?? "",
+            : (initialData?.penaltyAmount ?? ""),
         paymentDelayDays: initialData?.paymentDelayDays || 0,
         roomDeposit:
           typeof initialData?.roomDeposit === "number"
@@ -200,7 +199,7 @@ const OwnerFormModal = ({
                 vehicle?.car_number ||
                 vehicle?.plateNumber ||
                 vehicle?.carNumber ||
-                vehicle
+                vehicle,
             )) || [];
       setVehicleNumbers(existingVehicles.length > 0 ? existingVehicles : [""]);
       setDocuments({
@@ -318,14 +317,17 @@ const OwnerFormModal = ({
       vehicleNumbers: cleanedVehicles,
       documents,
       existingDocuments: initialData?.documents || {},
-      uberDriverPhotos: uberDriverPhotos.filter(photo => photo instanceof File),
-      existingUberPhotos: Array.isArray(initialData?.uberDriverPhotos) 
-        ? initialData.uberDriverPhotos.filter(url => typeof url === 'string')
+      uberDriverPhotos: uberDriverPhotos.filter(
+        (photo) => photo instanceof File,
+      ),
+      existingUberPhotos: Array.isArray(initialData?.uberDriverPhotos)
+        ? initialData.uberDriverPhotos.filter((url) => typeof url === "string")
         : [],
     });
   };
 
-  const inputClass = "border-border/60 bg-muted/5 focus-visible:ring-primary/30";
+  const inputClass =
+    "border-border/60 bg-muted/5 focus-visible:ring-primary/30 z-300";
 
   return (
     <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/50 px-4 py-4">
@@ -334,7 +336,11 @@ const OwnerFormModal = ({
         <div className="flex items-center justify-between gap-4 px-5 py-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-border/60 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <span className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
-              <Icon name={mode === "edit" ? "UserCog" : "UserPlus"} size={22} className="text-primary" />
+              <Icon
+                name={mode === "edit" ? "UserCog" : "UserPlus"}
+                size={22}
+                className="text-primary"
+              />
             </span>
             <div className="min-w-0">
               <h3 className="text-lg font-bold text-foreground truncate">
@@ -356,14 +362,21 @@ const OwnerFormModal = ({
           />
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 min-h-0 overflow-y-auto">
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 min-h-0 overflow-y-auto"
+        >
           <div className="grid  gap-5 p-5">
             {/* Left column */}
             <div className="space-y-5">
               {/* Contact */}
               <section className="rounded-xl border border-border/80 bg-muted/5 overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-border/60 flex items-center gap-2 bg-primary/5">
-                  <Icon name="Phone" size={16} className="text-primary shrink-0" />
+                  <Icon
+                    name="Phone"
+                    size={16}
+                    className="text-primary shrink-0"
+                  />
                   <h4 className="text-sm font-bold text-foreground">Contact</h4>
                 </div>
                 <div className="p-4 space-y-4">
@@ -372,7 +385,9 @@ const OwnerFormModal = ({
                       label="Full Name"
                       placeholder="e.g., Abdul Rahman"
                       value={formData.name}
-                      onChange={(e) => handleFieldChange("name", e?.target?.value)}
+                      onChange={(e) =>
+                        handleFieldChange("name", e?.target?.value)
+                      }
                       required
                       error={errors.name}
                       className={inputClass}
@@ -382,7 +397,9 @@ const OwnerFormModal = ({
                       type="tel"
                       placeholder="+966 5X XXX XXXX"
                       value={formData.phone}
-                      onChange={(e) => handleFieldChange("phone", e?.target?.value)}
+                      onChange={(e) =>
+                        handleFieldChange("phone", e?.target?.value)
+                      }
                       required
                       error={errors.phone}
                       className={inputClass}
@@ -394,7 +411,9 @@ const OwnerFormModal = ({
                       type="tel"
                       placeholder="+966…"
                       value={formData.alternativePhone1}
-                      onChange={(e) => handleFieldChange("alternativePhone1", e?.target?.value)}
+                      onChange={(e) =>
+                        handleFieldChange("alternativePhone1", e?.target?.value)
+                      }
                       className={inputClass}
                     />
                     <Input
@@ -402,7 +421,9 @@ const OwnerFormModal = ({
                       type="tel"
                       placeholder="+966…"
                       value={formData.alternativePhone2}
-                      onChange={(e) => handleFieldChange("alternativePhone2", e?.target?.value)}
+                      onChange={(e) =>
+                        handleFieldChange("alternativePhone2", e?.target?.value)
+                      }
                       className={inputClass}
                     />
                     <Input
@@ -410,7 +431,9 @@ const OwnerFormModal = ({
                       type="tel"
                       placeholder="+966…"
                       value={formData.alternativePhone3}
-                      onChange={(e) => handleFieldChange("alternativePhone3", e?.target?.value)}
+                      onChange={(e) =>
+                        handleFieldChange("alternativePhone3", e?.target?.value)
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -420,14 +443,18 @@ const OwnerFormModal = ({
                       type="email"
                       placeholder="owner@domain.com"
                       value={formData.email}
-                      onChange={(e) => handleFieldChange("email", e?.target?.value)}
+                      onChange={(e) =>
+                        handleFieldChange("email", e?.target?.value)
+                      }
                       className={inputClass}
                     />
                     <Input
                       label="Address"
                       placeholder="Street, City, Country"
                       value={formData.address}
-                      onChange={(e) => handleFieldChange("address", e?.target?.value)}
+                      onChange={(e) =>
+                        handleFieldChange("address", e?.target?.value)
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -435,12 +462,18 @@ const OwnerFormModal = ({
               </section>
 
               {/* Status & Category */}
-              <section className="rounded-xl border border-border/80 bg-muted/5 overflow-hidden">
+              <section className="rounded-xl border border-border/80 bg-muted/5  ">
                 <div className="px-4 py-2.5 border-b border-border/60 flex items-center gap-2 bg-primary/5">
-                  <Icon name="User" size={16} className="text-primary shrink-0" />
-                  <h4 className="text-sm font-bold text-foreground">Status & Category</h4>
+                  <Icon
+                    name="User"
+                    size={16}
+                    className="text-primary shrink-0"
+                  />
+                  <h4 className="text-sm font-bold text-foreground">
+                    Status & Category
+                  </h4>
                 </div>
-                <div className="p-4 grid grid-cols-2 gap-3">
+                <div className="p-4 grid grid-cols-2  gap-3">
                   <Select
                     label="Status"
                     options={statusOptions}
@@ -465,8 +498,14 @@ const OwnerFormModal = ({
               {/* Financial */}
               <section className="rounded-xl border border-border/80 bg-muted/5 overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-border/60 flex items-center gap-2 bg-primary/5">
-                  <Icon name="DollarSign" size={16} className="text-primary shrink-0" />
-                  <h4 className="text-sm font-bold text-foreground">Financial</h4>
+                  <Icon
+                    name="DollarSign"
+                    size={16}
+                    className="text-primary shrink-0"
+                  />
+                  <h4 className="text-sm font-bold text-foreground">
+                    Financial
+                  </h4>
                 </div>
                 <div className="p-4 space-y-4">
                   <div className="grid grid-cols-3 gap-2">
@@ -476,7 +515,9 @@ const OwnerFormModal = ({
                       min="0"
                       step="0.01"
                       value={formData.depositAmount}
-                      onChange={(e) => handleFieldChange("depositAmount", e?.target?.value)}
+                      onChange={(e) =>
+                        handleFieldChange("depositAmount", e?.target?.value)
+                      }
                       className={inputClass}
                     />
                     <Input
@@ -485,7 +526,12 @@ const OwnerFormModal = ({
                       min="0"
                       step="0.01"
                       value={formData.outstandingBalance}
-                      onChange={(e) => handleFieldChange("outstandingBalance", e?.target?.value)}
+                      onChange={(e) =>
+                        handleFieldChange(
+                          "outstandingBalance",
+                          e?.target?.value,
+                        )
+                      }
                       className={inputClass}
                     />
                     <Input
@@ -494,7 +540,9 @@ const OwnerFormModal = ({
                       min="0"
                       value={formData.paymentDelayDays}
                       description="Last 90 days"
-                      onChange={(e) => handleFieldChange("paymentDelayDays", e?.target?.value)}
+                      onChange={(e) =>
+                        handleFieldChange("paymentDelayDays", e?.target?.value)
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -506,7 +554,9 @@ const OwnerFormModal = ({
                       step="0.01"
                       value={formData.penaltyAmount}
                       description="Next bill"
-                      onChange={(e) => handleFieldChange("penaltyAmount", e?.target?.value)}
+                      onChange={(e) =>
+                        handleFieldChange("penaltyAmount", e?.target?.value)
+                      }
                       className={inputClass}
                     />
                     <Input
@@ -515,7 +565,9 @@ const OwnerFormModal = ({
                       min="0"
                       step="0.01"
                       value={formData.roomDeposit}
-                      onChange={(e) => handleFieldChange("roomDeposit", e?.target?.value)}
+                      onChange={(e) =>
+                        handleFieldChange("roomDeposit", e?.target?.value)
+                      }
                       className={inputClass}
                     />
                     <Input
@@ -524,7 +576,9 @@ const OwnerFormModal = ({
                       min="0"
                       step="0.01"
                       value={formData.prePaidRentAmount}
-                      onChange={(e) => handleFieldChange("prePaidRentAmount", e?.target?.value)}
+                      onChange={(e) =>
+                        handleFieldChange("prePaidRentAmount", e?.target?.value)
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -534,7 +588,9 @@ const OwnerFormModal = ({
                     min="0"
                     step="0.01"
                     value={formData.documentsCharge}
-                    onChange={(e) => handleFieldChange("documentsCharge", e?.target?.value)}
+                    onChange={(e) =>
+                      handleFieldChange("documentsCharge", e?.target?.value)
+                    }
                     className={inputClass}
                   />
                 </div>
@@ -543,8 +599,14 @@ const OwnerFormModal = ({
               {/* Options & Performance */}
               <section className="rounded-xl border border-border/80 bg-muted/5 overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-border/60 flex items-center gap-2 bg-primary/5">
-                  <Icon name="Settings" size={16} className="text-primary shrink-0" />
-                  <h4 className="text-sm font-bold text-foreground">Options & Performance</h4>
+                  <Icon
+                    name="Settings"
+                    size={16}
+                    className="text-primary shrink-0"
+                  />
+                  <h4 className="text-sm font-bold text-foreground">
+                    Options & Performance
+                  </h4>
                 </div>
                 <div className="p-4 flex flex-wrap items-center justify-between gap-4">
                   <Checkbox
@@ -556,9 +618,15 @@ const OwnerFormModal = ({
                     label="Including room — include room rent in bill generation"
                   />
                   <div className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground">Performance</span>
-                    <span className="text-2xl font-bold text-primary tabular-nums">{computedPerformance}%</span>
-                    <span className="text-xs text-muted-foreground">(payment delays)</span>
+                    <span className="text-sm text-muted-foreground">
+                      Performance
+                    </span>
+                    <span className="text-2xl font-bold text-primary tabular-nums">
+                      {computedPerformance}%
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      (payment delays)
+                    </span>
                   </div>
                 </div>
               </section>
@@ -567,11 +635,17 @@ const OwnerFormModal = ({
             {/* Right column */}
             <div className="space-y-5">
               {/* Vehicles */}
-              <section className="rounded-xl border border-border/80 bg-muted/5 overflow-hidden">
+              <section className="rounded-xl border border-border/80 bg-muted/5 ">
                 <div className="px-4 py-2.5 border-b border-border/60 flex items-center justify-between gap-2 bg-primary/5">
                   <div className="flex items-center gap-2">
-                    <Icon name="Car" size={16} className="text-primary shrink-0" />
-                    <h4 className="text-sm font-bold text-foreground">Vehicle Numbers</h4>
+                    <Icon
+                      name="Car"
+                      size={16}
+                      className="text-primary shrink-0"
+                    />
+                    <h4 className="text-sm font-bold text-foreground">
+                      Vehicle Numbers
+                    </h4>
                   </div>
                   <Button
                     type="button"
@@ -587,10 +661,16 @@ const OwnerFormModal = ({
                 <div className="p-4 space-y-2">
                   {vehicleNumbers.map((value, index) => {
                     const availableOptions = vehicleOptionsWithExisting.filter(
-                      (vehicle) => !vehicleNumbers.some((v, i) => i !== index && v === vehicle.value)
+                      (vehicle) =>
+                        !vehicleNumbers.some(
+                          (v, i) => i !== index && v === vehicle.value,
+                        ),
                     );
                     return (
-                      <div key={`vehicle-${index}`} className="flex items-center gap-2">
+                      <div
+                        key={`vehicle-${index}`}
+                        className="flex items-center gap-2"
+                      >
                         <div className="flex-1 min-w-0">
                           <Select
                             label={index === 0 ? "Vehicle #1" : `#${index + 1}`}
@@ -620,7 +700,9 @@ const OwnerFormModal = ({
                     );
                   })}
                   {errors.vehicles && (
-                    <p className="text-sm text-destructive">{errors.vehicles}</p>
+                    <p className="text-sm text-destructive">
+                      {errors.vehicles}
+                    </p>
                   )}
                 </div>
               </section>
@@ -628,8 +710,14 @@ const OwnerFormModal = ({
               {/* Mandatory Documents */}
               <section className="rounded-xl border border-border/80 bg-muted/5 overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-border/60 flex items-center gap-2 bg-primary/5">
-                  <Icon name="FileText" size={16} className="text-primary shrink-0" />
-                  <h4 className="text-sm font-bold text-foreground">Mandatory Documents</h4>
+                  <Icon
+                    name="FileText"
+                    size={16}
+                    className="text-primary shrink-0"
+                  />
+                  <h4 className="text-sm font-bold text-foreground">
+                    Mandatory Documents
+                  </h4>
                 </div>
                 <div className="p-4 grid grid-cols-2 gap-3">
                   {documentFields.map((doc) => (
@@ -650,7 +738,11 @@ const OwnerFormModal = ({
                           rel="noreferrer"
                           className="inline-flex items-center text-xs text-primary hover:underline"
                         >
-                          <Icon name="ExternalLink" size={12} className="mr-1 shrink-0" />
+                          <Icon
+                            name="ExternalLink"
+                            size={12}
+                            className="mr-1 shrink-0"
+                          />
                           View current
                         </a>
                       )}
@@ -662,54 +754,79 @@ const OwnerFormModal = ({
               {/* Uber Driver Profile Photos */}
               <section className="rounded-xl border border-border/80 bg-muted/5 overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-border/60 flex items-center gap-2 bg-primary/5">
-                  <Icon name="Image" size={16} className="text-primary shrink-0" />
-                  <h4 className="text-sm font-bold text-foreground">Uber Driver Photos (3+)</h4>
+                  <Icon
+                    name="Image"
+                    size={16}
+                    className="text-primary shrink-0"
+                  />
+                  <h4 className="text-sm font-bold text-foreground">
+                    Uber Driver Photos (3+)
+                  </h4>
                 </div>
                 <div className="p-4 space-y-3">
-                  {initialData?.uberDriverPhotos && Array.isArray(initialData.uberDriverPhotos) && initialData.uberDriverPhotos.length > 0 && (
-                    <div className="grid grid-cols-3 gap-2">
-                      {initialData.uberDriverPhotos.map((photoUrl, index) => (
-                        <div key={`existing-${index}`} className="relative group">
-                          <img
-                            src={photoUrl}
-                            alt={`Uber ${index + 1}`}
-                            className="w-full h-24 object-cover rounded-lg border border-border/60"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const existing = initialData.uberDriverPhotos.filter((_, i) => i !== index);
-                              setUberDriverPhotos(prev => {
-                                const filePhotos = prev.filter(p => p instanceof File);
-                                return [...filePhotos, ...existing];
-                              });
-                            }}
-                            className="absolute top-0.5 right-0.5 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  {initialData?.uberDriverPhotos &&
+                    Array.isArray(initialData.uberDriverPhotos) &&
+                    initialData.uberDriverPhotos.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {initialData.uberDriverPhotos.map((photoUrl, index) => (
+                          <div
+                            key={`existing-${index}`}
+                            className="relative group"
                           >
-                            <Icon name="X" size={10} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {uberDriverPhotos.filter(p => p instanceof File).length > 0 && (
+                            <img
+                              src={photoUrl}
+                              alt={`Uber ${index + 1}`}
+                              className="w-full h-24 object-cover rounded-lg border border-border/60"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const existing =
+                                  initialData.uberDriverPhotos.filter(
+                                    (_, i) => i !== index,
+                                  );
+                                setUberDriverPhotos((prev) => {
+                                  const filePhotos = prev.filter(
+                                    (p) => p instanceof File,
+                                  );
+                                  return [...filePhotos, ...existing];
+                                });
+                              }}
+                              className="absolute top-0.5 right-0.5 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Icon name="X" size={10} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  {uberDriverPhotos.filter((p) => p instanceof File).length >
+                    0 && (
                     <div className="grid grid-cols-3 gap-2">
-                      {uberDriverPhotos.filter(p => p instanceof File).map((photo, index) => (
-                        <div key={`new-${index}`} className="relative group">
-                          <img
-                            src={URL.createObjectURL(photo)}
-                            alt={`New ${index + 1}`}
-                            className="w-full h-24 object-cover rounded-lg border border-border/60"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleUberPhotoRemove(uberDriverPhotos.findIndex(p => p === photo))}
-                            className="absolute top-0.5 right-0.5 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <Icon name="X" size={10} />
-                          </button>
-                        </div>
-                      ))}
+                      {uberDriverPhotos
+                        .filter((p) => p instanceof File)
+                        .map((photo, index) => (
+                          <div key={`new-${index}`} className="relative group">
+                            <img
+                              src={URL.createObjectURL(photo)}
+                              alt={`New ${index + 1}`}
+                              className="w-full h-24 object-cover rounded-lg border border-border/60"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleUberPhotoRemove(
+                                  uberDriverPhotos.findIndex(
+                                    (p) => p === photo,
+                                  ),
+                                )
+                              }
+                              className="absolute top-0.5 right-0.5 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Icon name="X" size={10} />
+                            </button>
+                          </div>
+                        ))}
                     </div>
                   )}
                   <input
@@ -718,7 +835,7 @@ const OwnerFormModal = ({
                     multiple
                     onChange={(e) => {
                       const files = Array.from(e.target.files || []);
-                      files.forEach(file => handleUberPhotoAdd(file));
+                      files.forEach((file) => handleUberPhotoAdd(file));
                       e.target.value = "";
                     }}
                     className="w-full px-3 py-2 rounded-lg border border-border/60 bg-muted/5 text-sm text-foreground file:mr-2 file:rounded file:border-0 file:bg-primary/20 file:px-3 file:py-1 file:text-xs file:font-medium file:text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -743,7 +860,11 @@ const OwnerFormModal = ({
             iconName={mode === "edit" ? "Save" : "UserPlus"}
             iconPosition="left"
           >
-            {submitting ? "Saving…" : mode === "edit" ? "Save Changes" : "Create Owner"}
+            {submitting
+              ? "Saving…"
+              : mode === "edit"
+                ? "Save Changes"
+                : "Create Owner"}
           </Button>
         </div>
       </div>
@@ -752,4 +873,3 @@ const OwnerFormModal = ({
 };
 
 export default OwnerFormModal;
-
