@@ -18,6 +18,8 @@ import Dashboard from "./pages/dashboard";
 import BulkBillGenerator from "./pages/bulk-bill-generator";
 import VehiclePerformanceSheet from "./pages/vehicle-performance-sheet";
 import AdminSettings from "./pages/admin-settings";
+import OperatorDashboard from "./pages/operator-dashboard";
+import DriverLayout from "./pages/driver-dashboard/DriverLayout";
 
 const Routes = () => {
   return (
@@ -28,6 +30,24 @@ const Routes = () => {
           {/* Public routes */}
           <Route path="/" element={<Login />} />
           <Route path="/login" element={<Login />} />
+
+          {/* Operator and Driver dashboards (for TVP driver/operator login) */}
+          <Route
+            path="/operator"
+            element={
+              <ProtectedRoute requiredRoles={["operator"]}>
+                <OperatorDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/driver/*"
+            element={
+              <ProtectedRoute requiredRoles={["driver"]}>
+                <DriverLayout />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Default dashboard route - redirects based on role */}
           <Route path="/executive-dashboard" element={<RoleBasedRedirect />} />

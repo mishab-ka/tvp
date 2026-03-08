@@ -143,6 +143,51 @@ const resolveDriverDocuments = async (
   return { docColumns, hasNewUpload };
 };
 
+/** Upload a single document or profile photo for a driver (driver app). */
+export const uploadDriverDocument = async (driverId, formKey, file) => {
+  if (!file || !driverId) return null;
+  const docMap = [
+    { formKey: "aadharFront", column: "aadhar_front_url" },
+    { formKey: "aadharBack", column: "aadhar_back_url" },
+    { formKey: "licenseFront", column: "license_front_url" },
+    { formKey: "licenseBack", column: "license_back_url" },
+    { formKey: "profilePhoto", column: "profile_photo_url" },
+  ];
+  const entry = docMap.find((d) => d.formKey === formKey);
+  if (!entry) throw new Error("Invalid document type");
+  const storageKey = formKey === "profilePhoto" ? "profile_photo" : formKey;
+  const url = await uploadOwnerDocument(file, driverId, storageKey);
+  if (!url) return null;
+  const { error } = await supabase
+    .from(DRIVER_TABLE)
+    .update({ [entry.column]: url })
+    .eq("id", driverId);
+  if (error) throw error;
+  return url;
+};
+
+/** Add one or more Uber profile photos for a driver (driver app). Appends to existing uber_driver_photos. */
+export const addDriverUberPhoto = async (driverId, file) => {
+  if (!file || !driverId) return null;
+  const storageKey = `uber_driver_photo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const url = await uploadOwnerDocument(file, driverId, storageKey);
+  if (!url) return null;
+  const { data: row, error: fetchError } = await supabase
+    .from(DRIVER_TABLE)
+    .select("uber_driver_photos")
+    .eq("id", driverId)
+    .single();
+  if (fetchError) throw fetchError;
+  const existing = Array.isArray(row?.uber_driver_photos) ? row.uber_driver_photos : [];
+  const updated = [...existing, url];
+  const { error } = await supabase
+    .from(DRIVER_TABLE)
+    .update({ uber_driver_photos: updated })
+    .eq("id", driverId);
+  if (error) throw error;
+  return url;
+};
+
 const mapDriverRow = (row) => {
   if (!row) return null;
   const raw = row.vehicle_numbers;
@@ -197,6 +242,8 @@ const mapDriverRow = (row) => {
     recentTransactions: row.recent_transactions || [],
     transactions: row.transactions || [],
     supportTickets: [],
+    operator: !!(row.operator ?? row?.operator),
+    profilePhotoUrl: row.profile_photo_url || null,
   };
 };
 
@@ -254,6 +301,23 @@ export const getTVPOwnerDetails = async (ownerId) => {
   } catch (error) {
     console.error("Error fetching TVP driver details:", error);
     throw error;
+  }
+};
+
+/** Get TVP driver/operator by email (for login redirect). */
+export const getTVPDriverByEmail = async (email) => {
+  try {
+    const { data, error } = await supabase
+      .from(DRIVER_TABLE)
+      .select("*")
+      .ilike("email", (email || "").trim())
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? mapDriverRow(data) : null;
+  } catch (error) {
+    console.error("Error fetching TVP driver by email:", error);
+    return null;
   }
 };
 
@@ -343,6 +407,7 @@ export const createTVPOwner = async (formValues) => {
         alternative_phone_3: formValues.alternativePhone3 || null,
         uber_driver_photos: [],
         penalty_amount: formValues.penaltyAmount ?? 0,
+        operator: !!formValues.operator,
       };
       if (includeIncludingRoom) base.including_room = !!formValues.includingRoom;
       return base;
@@ -420,6 +485,162 @@ export const createTVPOwner = async (formValues) => {
     return mapDriverRow({ ...finalDriver, ...docColumns });
   } catch (error) {
     console.error("Error creating TVP driver:", error);
+    throw error;
+  }
+};
+
+/**
+ * Generate a unique driver_code for self-registration (avoids duplicate key with TVP###).
+ */
+const generateRegistrationDriverCode = (isOperator) => {
+  const prefix = isOperator ? "OPR" : "DRV";
+  const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return `${prefix}-${unique}`;
+};
+
+/**
+ * Register a new driver or operator from the login page.
+ * Creates Supabase Auth user (email/password) and a tvp_drivers row.
+ * Optional: address, alternativePhone1/2/3, profilePhoto, documents (aadharFront/Back, licenseFront/Back), uberDriverPhotos (File[]).
+ */
+export const registerTVPDriverOrOperator = async ({
+  name,
+  phone,
+  email,
+  operator,
+  password,
+  address = null,
+  alternativePhone1 = null,
+  alternativePhone2 = null,
+  alternativePhone3 = null,
+  profilePhoto = null,
+  documents = {},
+  uberDriverPhotos = [],
+}) => {
+  try {
+    const { error: authError } = await supabase.auth.signUp({
+      email: email?.trim(),
+      password,
+      options: { emailRedirectTo: undefined },
+    });
+
+    if (authError) {
+      if (authError.message?.includes("already registered") || authError.code === "user_already_exists") {
+        throw new Error("An account with this email already exists.");
+      }
+      throw new Error(authError.message || "Sign up failed.");
+    }
+
+    const driverCode = generateRegistrationDriverCode(!!operator);
+    const insertPayload = {
+      driver_code: driverCode,
+      full_name: name?.trim() || null,
+      email: email?.trim() || null,
+      phone: phone?.trim() || null,
+      address: address?.trim() || null,
+      region: null,
+      status: "pending",
+      category: "single_driver",
+      cumulative_rental_days: 0,
+      deposit_amount: 0,
+      outstanding_balance: 0,
+      net_outstanding: 0,
+      payment_delay_days: 0,
+      performance_score: 100,
+      total_earnings: 0,
+      total_cash_collect: 0,
+      vehicle_numbers: [],
+      room_deposit: 0,
+      pre_paid_rent_amount: 0,
+      documents_charge: 0,
+      alternative_phone_1: alternativePhone1?.trim() || null,
+      alternative_phone_2: alternativePhone2?.trim() || null,
+      alternative_phone_3: alternativePhone3?.trim() || null,
+      uber_driver_photos: [],
+      penalty_amount: 0,
+      operator: !!operator,
+    };
+
+    let { data: driver, error: insertError } = await supabase
+      .from(DRIVER_TABLE)
+      .insert(insertPayload)
+      .select()
+      .single();
+
+    if (insertError) {
+      if (insertError.code === "PGRST204" || insertError.message?.includes("operator")) {
+        const { operator: _o, ...payloadWithoutOperator } = insertPayload;
+        const { data: retryDriver, error: retryError } = await supabase
+          .from(DRIVER_TABLE)
+          .insert(payloadWithoutOperator)
+          .select()
+          .single();
+        if (retryError) throw retryError;
+        driver = retryDriver;
+      } else if (insertError.code === "23505" || insertError.message?.includes("duplicate key") || insertError.message?.includes("driver_code")) {
+        insertPayload.driver_code = generateRegistrationDriverCode(!!operator);
+        const { data: retryDriver, error: retryError } = await supabase
+          .from(DRIVER_TABLE)
+          .insert(insertPayload)
+          .select()
+          .single();
+        if (retryError) throw new Error(retryError.message || "Failed to create driver/operator record.");
+        driver = retryDriver;
+      } else {
+        throw new Error(insertError.message || "Failed to create driver/operator record.");
+      }
+    }
+
+    const driverId = driver?.id;
+    if (!driverId) return mapDriverRow(driver);
+
+    const updatePayload = {};
+
+    if (profilePhoto && profilePhoto instanceof File) {
+      const url = await uploadOwnerDocument(profilePhoto, driverId, "profile_photo");
+      if (url) updatePayload.profile_photo_url = url;
+    }
+
+    const docKeys = ["aadharFront", "aadharBack", "licenseFront", "licenseBack"];
+    for (const key of docKeys) {
+      const file = documents[key];
+      if (file && file instanceof File) {
+        const url = await uploadOwnerDocument(file, driverId, key);
+        if (url) {
+          const col = documentFieldMap.find((f) => f.formKey === key);
+          if (col) updatePayload[col.column] = url;
+        }
+      }
+    }
+
+    const uberUrls = [];
+    if (Array.isArray(uberDriverPhotos)) {
+      for (const file of uberDriverPhotos) {
+        if (file && file instanceof File) {
+          const url = await uploadOwnerDocument(
+            file,
+            driverId,
+            `uber_driver_photo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+          );
+          if (url) uberUrls.push(url);
+        }
+      }
+    }
+    if (uberUrls.length > 0) updatePayload.uber_driver_photos = uberUrls;
+
+    if (Object.keys(updatePayload).length > 0) {
+      const { data: updated, error: updateErr } = await supabase
+        .from(DRIVER_TABLE)
+        .update(updatePayload)
+        .eq("id", driverId)
+        .select()
+        .single();
+      if (!updateErr && updated) driver = updated;
+    }
+
+    return mapDriverRow(driver);
+  } catch (error) {
+    console.error("Error in registerTVPDriverOrOperator:", error);
     throw error;
   }
 };

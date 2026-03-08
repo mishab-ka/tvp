@@ -4,14 +4,16 @@ import { useNavigate, useLocation } from "react-router-dom";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import { Checkbox } from "../components/ui/Checkbox";
+import Select from "../components/ui/Select";
 import Icon from "../components/AppIcon";
-import { userManagementAPI } from "../lib/supabase";
+import { userManagementAPI, supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
+import { registerTVPDriverOrOperator, getTVPDriverByEmail } from "../lib/tvpManagementAPI";
 
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, login, currentUser } = useAuth();
   const [authMethod, setAuthMethod] = useState("email"); // 'email' or 'phone'
   const [formData, setFormData] = useState({
     email: "",
@@ -25,14 +27,46 @@ const Login = () => {
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [lockoutTime, setLockoutTime] = useState(null);
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [view, setView] = useState("login"); // 'login' | 'register'
+  const [registerStep, setRegisterStep] = useState(1); // 1 | 2 | 3
+  const [registerData, setRegisterData] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    role: "driver", // 'driver' | 'operator'
+    password: "",
+    confirmPassword: "",
+    alternativePhone1: "",
+    alternativePhone2: "",
+    alternativePhone3: "",
+    address: "",
+  });
+  const [registerFiles, setRegisterFiles] = useState({
+    profilePhoto: null,
+    aadharFront: null,
+    aadharBack: null,
+    licenseFront: null,
+    licenseBack: null,
+    uberPhotos: [],
+  });
+  const [registerErrors, setRegisterErrors] = useState({});
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerSuccess, setRegisterSuccess] = useState(false);
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      const from = location.state?.from?.pathname || "/executive-dashboard";
-      navigate(from, { replace: true });
+    if (!isAuthenticated || !currentUser) return;
+    const from = location.state?.from?.pathname;
+    if (currentUser.role === "operator") {
+      navigate("/operator", { replace: true });
+      return;
     }
-  }, [isAuthenticated, navigate, location]);
+    if (currentUser.role === "driver") {
+      navigate("/driver", { replace: true });
+      return;
+    }
+    navigate(from || "/executive-dashboard", { replace: true });
+  }, [isAuthenticated, currentUser, navigate, location]);
 
   useEffect(() => {
     if (lockoutTime) {
@@ -159,9 +193,31 @@ const Login = () => {
       );
 
       if (!user) {
+        if (authMethod === "email" && formData?.email) {
+          const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
+            email: formData.email.trim(),
+            password: formData.password,
+          });
+          if (!authErr && authData?.user) {
+            const driver = await getTVPDriverByEmail(formData.email.trim());
+            if (driver) {
+              const userData = {
+                id: driver.id,
+                email: driver.email,
+                name: driver.name,
+                role: driver.operator ? "operator" : "driver",
+                fromTVP: true,
+                permissions: [],
+              };
+              if (login(userData)) {
+                navigate(driver.operator ? "/operator" : "/driver", { replace: true });
+                return;
+              }
+            }
+          }
+        }
         const newAttempts = loginAttempts + 1;
         setLoginAttempts(newAttempts);
-
         if (newAttempts >= 3) {
           setLockoutTime(30);
           setErrors({
@@ -208,6 +264,102 @@ const Login = () => {
       setErrors({ general: "Login failed. Please try again." });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const validateRegisterStep1 = () => {
+    const err = {};
+    if (!registerData.name?.trim()) err.name = "Name is required";
+    if (!registerData.phone?.trim()) err.phone = "Phone is required";
+    if (!registerData.email?.trim()) err.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerData.email)) err.email = "Enter a valid email";
+    if (!registerData.password) err.password = "Password is required";
+    else if (registerData.password.length < 6) err.password = "Password must be at least 6 characters";
+    if (registerData.password !== registerData.confirmPassword) err.confirmPassword = "Passwords do not match";
+    setRegisterErrors(err);
+    return Object.keys(err).length === 0;
+  };
+
+  const handleRegisterNext = () => {
+    if (registerStep === 1 && !validateRegisterStep1()) return;
+    setRegisterErrors({});
+    setRegisterStep((s) => Math.min(3, s + 1));
+  };
+
+  const handleRegisterBack = () => {
+    setRegisterErrors({});
+    setRegisterStep((s) => Math.max(1, s - 1));
+  };
+
+  const handleRegisterSubmit = async (e) => {
+    e?.preventDefault();
+    if (registerStep < 3) {
+      handleRegisterNext();
+      return;
+    }
+    if (!validateRegisterStep1()) return;
+    setRegisterLoading(true);
+    setRegisterErrors({});
+    try {
+      await registerTVPDriverOrOperator({
+        name: registerData.name.trim(),
+        phone: registerData.phone.trim(),
+        email: registerData.email.trim(),
+        operator: registerData.role === "operator",
+        password: registerData.password,
+        address: registerData.address?.trim() || null,
+        alternativePhone1: registerData.alternativePhone1?.trim() || null,
+        alternativePhone2: registerData.alternativePhone2?.trim() || null,
+        alternativePhone3: registerData.alternativePhone3?.trim() || null,
+        profilePhoto: registerFiles.profilePhoto || null,
+        documents: {
+          aadharFront: registerFiles.aadharFront || null,
+          aadharBack: registerFiles.aadharBack || null,
+          licenseFront: registerFiles.licenseFront || null,
+          licenseBack: registerFiles.licenseBack || null,
+        },
+        uberDriverPhotos: Array.isArray(registerFiles.uberPhotos) ? registerFiles.uberPhotos : [],
+      });
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: registerData.email.trim(),
+        password: registerData.password,
+      });
+      if (signInError) {
+        setRegisterSuccess(true);
+        setRegisterStep(1);
+        setRegisterData({
+          name: "", phone: "", email: "", role: "driver", password: "", confirmPassword: "",
+          alternativePhone1: "", alternativePhone2: "", alternativePhone3: "", address: "",
+        });
+        setRegisterFiles({ profilePhoto: null, aadharFront: null, aadharBack: null, licenseFront: null, licenseBack: null, uberPhotos: [] });
+        return;
+      }
+      const driver = await getTVPDriverByEmail(registerData.email.trim());
+      if (driver) {
+        const userData = {
+          id: driver.id,
+          email: driver.email,
+          name: driver.name,
+          role: driver.operator ? "operator" : "driver",
+          fromTVP: true,
+          permissions: [],
+        };
+        if (login(userData)) {
+          navigate(driver.operator ? "/operator" : "/driver", { replace: true });
+          return;
+        }
+      }
+      setRegisterSuccess(true);
+      setRegisterStep(1);
+      setRegisterData({
+        name: "", phone: "", email: "", role: "driver", password: "", confirmPassword: "",
+        alternativePhone1: "", alternativePhone2: "", alternativePhone3: "", address: "",
+      });
+      setRegisterFiles({ profilePhoto: null, aadharFront: null, aadharBack: null, licenseFront: null, licenseBack: null, uberPhotos: [] });
+    } catch (err) {
+      setRegisterErrors({ general: err?.message || "Registration failed. Please try again." });
+    } finally {
+      setRegisterLoading(false);
     }
   };
 
@@ -294,7 +446,261 @@ const Login = () => {
               </div>
             </div>
 
-            {/* Login Form */}
+            {/* Login or Register Form */}
+            {view === "register" ? (
+              <div className="bg-card border border-border rounded-lg p-6 card-shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-foreground">Create account</h2>
+                  <span className="text-sm text-muted-foreground">Step {registerStep} of 3</span>
+                </div>
+                {registerSuccess && (
+                  <div className="p-3 bg-success/10 border border-success/20 rounded-md mb-4">
+                    <p className="text-sm text-success">Registration successful. You can sign in once your account is activated.</p>
+                  </div>
+                )}
+                <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                  {registerErrors?.general && (
+                    <div className="p-3 bg-error/10 border border-error/20 rounded-md">
+                      <p className="text-sm text-error">{registerErrors.general}</p>
+                    </div>
+                  )}
+
+                  {/* Step 1 */}
+                  {registerStep === 1 && (
+                    <>
+                      <Input
+                        label="Full Name *"
+                        name="name"
+                        value={registerData.name}
+                        onChange={(e) => setRegisterData((p) => ({ ...p, name: e?.target?.value }))}
+                        placeholder="Your name"
+                        error={registerErrors?.name}
+                        required
+                        disabled={registerLoading}
+                      />
+                      <Input
+                        label="Phone Number *"
+                        name="phone"
+                        type="tel"
+                        value={registerData.phone}
+                        onChange={(e) => setRegisterData((p) => ({ ...p, phone: e?.target?.value }))}
+                        placeholder="+966 50 123 4567"
+                        error={registerErrors?.phone}
+                        required
+                        disabled={registerLoading}
+                      />
+                      <Input
+                        label="Email Address *"
+                        name="email"
+                        type="email"
+                        value={registerData.email}
+                        onChange={(e) => setRegisterData((p) => ({ ...p, email: e?.target?.value }))}
+                        placeholder="you@example.com"
+                        error={registerErrors?.email}
+                        required
+                        disabled={registerLoading}
+                      />
+                      <Select
+                        label="I am a"
+                        options={[
+                          { value: "driver", label: "Driver" },
+                          { value: "operator", label: "Operator" },
+                        ]}
+                        value={registerData.role}
+                        onChange={(value) => setRegisterData((p) => ({ ...p, role: value }))}
+                        disabled={registerLoading}
+                      />
+                      <Input
+                        label="Password *"
+                        name="password"
+                        type="password"
+                        value={registerData.password}
+                        onChange={(e) => setRegisterData((p) => ({ ...p, password: e?.target?.value }))}
+                        placeholder="At least 6 characters"
+                        error={registerErrors?.password}
+                        required
+                        disabled={registerLoading}
+                      />
+                      <Input
+                        label="Confirm Password *"
+                        name="confirmPassword"
+                        type="password"
+                        value={registerData.confirmPassword}
+                        onChange={(e) => setRegisterData((p) => ({ ...p, confirmPassword: e?.target?.value }))}
+                        placeholder="Repeat password"
+                        error={registerErrors?.confirmPassword}
+                        required
+                        disabled={registerLoading}
+                      />
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="lg"
+                        fullWidth
+                        onClick={handleRegisterNext}
+                        disabled={registerLoading}
+                      >
+                        Next
+                      </Button>
+                    </>
+                  )}
+
+                  {/* Step 2 */}
+                  {registerStep === 2 && (
+                    <>
+                      <Input
+                        label="Alternative phone 1"
+                        name="alternativePhone1"
+                        type="tel"
+                        value={registerData.alternativePhone1}
+                        onChange={(e) => setRegisterData((p) => ({ ...p, alternativePhone1: e?.target?.value }))}
+                        placeholder="+966 50 123 4567"
+                        disabled={registerLoading}
+                      />
+                      <Input
+                        label="Alternative phone 2"
+                        name="alternativePhone2"
+                        type="tel"
+                        value={registerData.alternativePhone2}
+                        onChange={(e) => setRegisterData((p) => ({ ...p, alternativePhone2: e?.target?.value }))}
+                        placeholder="+966 50 123 4567"
+                        disabled={registerLoading}
+                      />
+                      <Input
+                        label="Alternative phone 3"
+                        name="alternativePhone3"
+                        type="tel"
+                        value={registerData.alternativePhone3}
+                        onChange={(e) => setRegisterData((p) => ({ ...p, alternativePhone3: e?.target?.value }))}
+                        placeholder="+966 50 123 4567"
+                        disabled={registerLoading}
+                      />
+                      <Input
+                        label="Address"
+                        name="address"
+                        value={registerData.address}
+                        onChange={(e) => setRegisterData((p) => ({ ...p, address: e?.target?.value }))}
+                        placeholder="Your address"
+                        disabled={registerLoading}
+                      />
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="lg"
+                        fullWidth
+                        onClick={handleRegisterNext}
+                        disabled={registerLoading}
+                      >
+                        Next
+                      </Button>
+                    </>
+                  )}
+
+                  {/* Step 3 - Uploads */}
+                  {registerStep === 3 && (
+                    <>
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-foreground">Profile photo</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="block w-full text-sm text-muted-foreground file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium"
+                          onChange={(e) => setRegisterFiles((f) => ({ ...f, profilePhoto: e.target.files?.[0] || null }))}
+                          disabled={registerLoading}
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-foreground">Aadhaar card (front)</label>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="block w-full text-sm text-muted-foreground file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium"
+                          onChange={(e) => setRegisterFiles((f) => ({ ...f, aadharFront: e.target.files?.[0] || null }))}
+                          disabled={registerLoading}
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-foreground">Aadhaar card (back)</label>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="block w-full text-sm text-muted-foreground file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium"
+                          onChange={(e) => setRegisterFiles((f) => ({ ...f, aadharBack: e.target.files?.[0] || null }))}
+                          disabled={registerLoading}
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-foreground">Driving licence (front)</label>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="block w-full text-sm text-muted-foreground file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium"
+                          onChange={(e) => setRegisterFiles((f) => ({ ...f, licenseFront: e.target.files?.[0] || null }))}
+                          disabled={registerLoading}
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-foreground">Driving licence (back)</label>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="block w-full text-sm text-muted-foreground file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium"
+                          onChange={(e) => setRegisterFiles((f) => ({ ...f, licenseBack: e.target.files?.[0] || null }))}
+                          disabled={registerLoading}
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-foreground">Uber profile (multiple photos)</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="block w-full text-sm text-muted-foreground file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-medium"
+                          onChange={(e) => setRegisterFiles((f) => ({ ...f, uberPhotos: Array.from(e.target.files || []) }))}
+                          disabled={registerLoading}
+                        />
+                        {registerFiles.uberPhotos?.length > 0 && (
+                          <p className="text-xs text-muted-foreground">{registerFiles.uberPhotos.length} file(s) selected</p>
+                        )}
+                      </div>
+                      <Button
+                        type="submit"
+                        variant="default"
+                        size="lg"
+                        fullWidth
+                        loading={registerLoading}
+                        disabled={registerLoading}
+                      >
+                        Register
+                      </Button>
+                    </>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2">
+                    <div>
+                      {registerStep > 1 && (
+                        <button
+                          type="button"
+                          onClick={handleRegisterBack}
+                          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                          disabled={registerLoading}
+                        >
+                          Back
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setView("login"); setRegisterErrors({}); setRegisterStep(1); }}
+                      className="text-sm text-primary hover:text-primary/80 transition-colors"
+                      disabled={registerLoading}
+                    >
+                      Back to Sign In
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ) : (
             <div className="bg-card border border-border rounded-lg p-6 card-shadow">
               <form onSubmit={handleSubmit} className="space-y-6">
                 {errors?.general && (
@@ -457,6 +863,17 @@ const Login = () => {
                   {lockoutTime ? `Locked (${lockoutTime}s)` : "Sign In"}
                 </Button>
 
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setView("register"); setRegisterStep(1); setRegisterErrors({}); setRegisterSuccess(false); }}
+                    className="text-sm text-primary hover:text-primary/80 transition-colors"
+                    disabled={isLoading || lockoutTime}
+                  >
+                    Don&apos;t have an account? Register
+                  </button>
+                </div>
+
                 {/* Super Admin credentials display */}
                 <div className="mt-6 p-4 bg-muted/50 rounded-md border border-border">
                   <h4 className="text-sm font-medium text-foreground mb-2">
@@ -482,6 +899,7 @@ const Login = () => {
                 </div>
               </form>
             </div>
+            )}
           </div>
         </div>
 
