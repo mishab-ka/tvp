@@ -102,12 +102,12 @@ const Dashboard = () => {
 
   // When a period is selected, show only that period's amounts (no all-time fallback)
   const balanceToCollect =
-    dateFrom && dateTo
-      ? (stats.bills.weekBalanceToCollect ?? 0)
-      : 0;
+    dateFrom && dateTo ? (stats.bills.weekBalanceToCollect ?? 0) : 0;
   const totalOutstandingDisplay =
     dateFrom && dateTo
-      ? (stats.bills.totalOutstandingForWeek ?? stats.bills.totalOutstandingAmount ?? 0)
+      ? (stats.bills.totalOutstandingForWeek ??
+        stats.bills.totalOutstandingAmount ??
+        0)
       : 0;
 
   const loadFinancialSummary = useCallback(
@@ -125,7 +125,10 @@ const Dashboard = () => {
           bills: {
             totalOutstandingAmount: billStats?.totalOutstandingAmount ?? 0,
             totalOutstandingForWeek: billStats?.totalOutstandingForWeek ?? null,
-            liveOutstanding: billStats?.liveOutstanding ?? billStats?.totalOutstandingAmount ?? 0,
+            liveOutstanding:
+              billStats?.liveOutstanding ??
+              billStats?.totalOutstandingAmount ??
+              0,
             weekBalanceToCollect: billStats?.weekBalanceToCollect ?? null,
           },
           accountsCollected: totals || {
@@ -395,11 +398,13 @@ const Dashboard = () => {
                   </h2>
                   {dateFrom && dateTo ? (
                     <p className="text-sm text-muted-foreground mt-0.5">
-                      Amounts below are for the selected period only (same week as &quot;Paid&quot; transaction week).
+                      Amounts below are for the selected period only (same week
+                      as &quot;Paid&quot; transaction week).
                     </p>
                   ) : (
                     <p className="text-sm text-muted-foreground mt-0.5">
-                      Select a week or apply a custom range to see Financial Summary for that period.
+                      Select a week or apply a custom range to see Financial
+                      Summary for that period.
                     </p>
                   )}
                 </div>
@@ -422,7 +427,9 @@ const Dashboard = () => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => setFinancialWeek(calculatePreviousWeek())}
+                        onClick={() =>
+                          setFinancialWeek(calculatePreviousWeek())
+                        }
                         iconName="Calendar"
                         iconSize={14}
                         iconPosition="left"
@@ -539,7 +546,8 @@ const Dashboard = () => {
               {!dateFrom || !dateTo ? (
                 <div className="flex items-center justify-center py-12 border border-border rounded-lg bg-muted/20">
                   <p className="text-sm text-muted-foreground">
-                    Select a week above (or set a custom range and click Apply) to see Financial Summary for that period.
+                    Select a week above (or set a custom range and click Apply)
+                    to see Financial Summary for that period.
                   </p>
                 </div>
               ) : financialLoading ? (
@@ -560,7 +568,9 @@ const Dashboard = () => {
                         </p>
                         <p
                           className={`text-2xl font-bold ${
-                            totalOutstandingDisplay > 0 ? "text-error" : "text-success"
+                            totalOutstandingDisplay > 0
+                              ? "text-error"
+                              : "text-success"
                           }`}
                         >
                           {formatCurrency(totalOutstandingDisplay)}
@@ -573,7 +583,9 @@ const Dashboard = () => {
                         name="AlertCircle"
                         size={24}
                         className={
-                          totalOutstandingDisplay > 0 ? "text-error" : "text-success"
+                          totalOutstandingDisplay > 0
+                            ? "text-error"
+                            : "text-success"
                         }
                       />
                     </div>
@@ -671,7 +683,7 @@ const Dashboard = () => {
 
           {/* Quick Actions */}
           <div className="mb-6">
-            <h2 className="text-xl font-semibold text-foreground mb-4">
+            <h2 className="text-xl  font-semibold text-foreground mb-4">
               Quick Actions
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

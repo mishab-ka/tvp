@@ -289,6 +289,7 @@ const OwnersDataGrid = ({
                   label="Outstanding"
                   sortKey="outstandingBalance"
                 />
+                <SortableHeader label="Penalty" sortKey="penaltyAmount" />
                 <SortableHeader label="Status" sortKey="status" />
                 <th className="px-4 py-3 text-left bg-white text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Actions
@@ -344,17 +345,17 @@ const OwnersDataGrid = ({
                   </td>
                   <td className="px-4 py-4">
                     <div className="flex flex-wrap gap-1">
-                      {owner?.vehicleNumbers &&
-                      owner.vehicleNumbers.length > 0 ? (
-                        owner.vehicleNumbers.map((vehicle, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center px-2 py-1 rounded-md bg-primary/10 text-primary text-xs font-medium"
-                          >
+                      {owner?.vehicleNumbers && owner.vehicleNumbers.length > 0 ? (
+                        owner.vehicleNumbers.length === 1 ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-primary/10 text-primary text-xs font-medium">
                             <Icon name="Car" size={12} className="mr-1" />
-                            {vehicle}
+                            {owner.vehicleNumbers[0]}
                           </span>
-                        ))
+                        ) : (
+                          <span className="text-sm font-medium text-foreground">
+                            {owner.vehicleNumbers.length} vehicles
+                          </span>
+                        )
                       ) : (
                         <span className="text-sm text-muted-foreground">
                           No vehicles
@@ -376,6 +377,11 @@ const OwnersDataGrid = ({
                       }`}
                     >
                       {formatCurrency(owner?.outstandingBalance)}
+                    </div>
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="text-sm font-medium text-foreground">
+                      {formatCurrency(owner?.penaltyAmount ?? owner?.penalty_amount ?? 0)}
                     </div>
                   </td>
                   <td
@@ -609,19 +615,18 @@ const OwnersDataGrid = ({
                   <span className="text-muted-foreground">Vehicles:</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {owner?.vehicleNumbers?.length > 0 ? (
-                      owner.vehicleNumbers.map((vehicle, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium"
-                        >
+                      owner.vehicleNumbers.length === 1 ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium">
                           <Icon name="Car" size={10} className="mr-1" />
-                          {vehicle}
+                          {owner.vehicleNumbers[0]}
                         </span>
-                      ))
+                      ) : (
+                        <p className="font-medium">
+                          {owner.vehicleNumbers.length} vehicles
+                        </p>
+                      )
                     ) : (
-                      <p className="font-medium">
-                        {owner?.vehicleCount ?? owner?.vehicles?.length ?? 0}
-                      </p>
+                      <p className="font-medium text-muted-foreground">No vehicles</p>
                     )}
                   </div>
                 </div>
@@ -635,6 +640,12 @@ const OwnersDataGrid = ({
                     }`}
                   >
                     {formatCurrency(owner?.outstandingBalance)}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Penalty:</span>
+                  <p className="font-medium">
+                    {formatCurrency(owner?.penaltyAmount ?? owner?.penalty_amount ?? 0)}
                   </p>
                 </div>
                 <div>
