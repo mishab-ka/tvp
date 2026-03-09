@@ -1384,6 +1384,53 @@ export const getBillById = async (billId) => {
   }
 };
 
+/** Get invoice HTML for a bill (for driver app View/Download). Uses stored invoice_html or generates from bill data. */
+export const getBillInvoiceHtml = async (billId) => {
+  const bill = await getBillById(billId);
+  if (!bill) throw new Error("Bill not found");
+  if (bill.invoice_html) return bill.invoice_html;
+  const vehiclesBreakdown = bill.vehicles_breakdown || null;
+  const vehiclesForInvoice =
+    vehiclesBreakdown && Array.isArray(vehiclesBreakdown) && vehiclesBreakdown.length > 0
+      ? vehiclesBreakdown.map((v) => ({
+          vehicleNumber: v.vehicleNumber || v.vehicle_number,
+          rentalDays: Number(v.rentalDays || v.rental_days) || 0,
+          trips: Number(v.trips) || 0,
+          dailyRent: Number(v.dailyRent || v.daily_rent) || 0,
+        }))
+      : bill.vehicles && Array.isArray(bill.vehicles)
+        ? bill.vehicles
+        : null;
+  return generateInvoiceHTML({
+    driverId: bill.driver_id || bill.driverId,
+    tvpId: bill.tvp_id || bill.tvpId,
+    driverName: bill.driver_name || bill.driverName,
+    vehicleNumber: bill.vehicle_number || bill.vehicleNumber,
+    rentalDays: bill.rental_days || bill.rentalDays,
+    trips: bill.trips,
+    dailyRent: bill.daily_rent || bill.dailyRent,
+    weeklyInsurance: bill.weekly_insurance || bill.weeklyInsurance,
+    doubleDriverCharge: bill.double_driver_charge || bill.doubleDriverCharge,
+    netWeeklyRent: bill.net_weekly_rent || bill.netWeeklyRent,
+    totalEarnings: bill.total_earnings || bill.totalEarnings,
+    totalCashCollect: bill.total_cash_collect || bill.totalCashCollect,
+    difference: bill.difference,
+    platformFee: bill.platform_fee || bill.platformFee,
+    toll: bill.toll,
+    tds: bill.tds,
+    vehicleAdjustment: bill.vehicle_adjustment || bill.vehicleAdjustment,
+    rtoFine: bill.rto_fine || bill.rtoFine,
+    accident: bill.accident,
+    deadKm: bill.dead_km || bill.deadKm,
+    roomRent: bill.room_rent || bill.roomRent || 0,
+    currentOS: bill.current_os || bill.currentOS,
+    penaltyAmount: bill.penalty_amount ?? bill.penaltyAmount ?? 0,
+    penaltyOtherAmount: bill.penalty_other_amount ?? bill.penaltyOtherAmount ?? 0,
+    billNumber: bill.bill_number || bill.billNumber,
+    vehicles: vehiclesForInvoice,
+  });
+};
+
 // Delete a bill
 export const deleteDriverBill = async (billId, driverId) => {
   try {

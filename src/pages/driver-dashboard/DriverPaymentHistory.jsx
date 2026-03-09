@@ -38,6 +38,17 @@ export default function DriverPaymentHistory({ driver }) {
     return labels[t] || (t || "").replace(/_/g, " ");
   };
 
+  const DEPOSIT_TYPES = ["deposit", "deposit_due", "deposit_paid", "deposit_refund"];
+  const PENALTY_REFUND_TYPES = ["penalty_due", "penalty_paid", "penalty_refund", "penalty_other", "accident_due", "accident_paid", "refund"];
+
+  const [activeTab, setActiveTab] = useState("all"); // 'deposit' | 'penalty_refund' | 'all'
+
+  const filteredPayments = (() => {
+    if (activeTab === "deposit") return payments.filter((p) => DEPOSIT_TYPES.includes(p.payment_type));
+    if (activeTab === "penalty_refund") return payments.filter((p) => PENALTY_REFUND_TYPES.includes(p.payment_type));
+    return payments;
+  })();
+
   return (
     <div className="min-h-full bg-muted/30">
       <MobileHeader title="Payment History" />
@@ -108,17 +119,55 @@ export default function DriverPaymentHistory({ driver }) {
             <Icon name="List" size={18} className="text-foreground" />
             <span className="font-semibold text-foreground">Recent Payments</span>
           </div>
+          {/* Tabs */}
+          <div className="flex rounded-lg border border-border bg-muted/30 p-1 mb-3">
+            <button
+              type="button"
+              onClick={() => setActiveTab("deposit")}
+              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                activeTab === "deposit" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Deposit
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("penalty_refund")}
+              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                activeTab === "penalty_refund" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Penalty & Refund
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("all")}
+              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                activeTab === "all" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              All
+            </button>
+          </div>
           {loading ? (
             <div className="rounded-xl bg-card border border-border p-6 text-center text-muted-foreground text-sm">
               Loading…
             </div>
-          ) : payments.length === 0 ? (
+          ) : filteredPayments.length === 0 ? (
             <div className="rounded-xl bg-card border border-border shadow-sm p-6 text-center">
-              <p className="text-sm text-muted-foreground">Payment history will appear here once available.</p>
+              <p className="text-sm text-muted-foreground">
+                {payments.length === 0
+                  ? "Payment history will appear here once available."
+                  : activeTab === "deposit"
+                    ? "No deposit transactions."
+                    : activeTab === "penalty_refund"
+                      ? "No penalty or refund transactions."
+                      : "No transactions."}
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
-              {payments.slice(0, 20).map((p) => (
+              {filteredPayments.slice(0, 20).map((p) => (
                 <div
                   key={p.id}
                   className="rounded-xl bg-card border border-border shadow-sm p-4 flex items-center justify-between gap-3"

@@ -2,11 +2,12 @@ import React, { useEffect, useState } from "react";
 import Icon from "../../components/AppIcon";
 import MobileHeader from "./components/MobileHeader";
 import { formatCurrency } from "../../utils/formatters";
-import { getDriverBills } from "../../lib/tvpManagementAPI";
+import { getDriverBills, getBillInvoiceHtml } from "../../lib/tvpManagementAPI";
 
 export default function DriverBills({ driver }) {
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionBillId, setActionBillId] = useState(null); // loading view/download for this bill
 
   useEffect(() => {
     if (!driver?.id) return;
@@ -21,6 +22,45 @@ export default function DriverBills({ driver }) {
   };
 
   const totalPayable = bills.reduce((sum, b) => sum + Number(b.current_os ?? 0), 0);
+
+  const openInvoiceWindow = (html, forPrint = false) => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    if (forPrint) {
+      w.onload = () => {
+        w.print();
+        w.onafterprint = () => w.close();
+      };
+    }
+  };
+
+  const handleView = async (bill) => {
+    if (actionBillId) return;
+    setActionBillId(bill.id);
+    try {
+      const html = await getBillInvoiceHtml(bill.id);
+      openInvoiceWindow(html, false);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionBillId(null);
+    }
+  };
+
+  const handleDownload = async (bill) => {
+    if (actionBillId) return;
+    setActionBillId(bill.id);
+    try {
+      const html = await getBillInvoiceHtml(bill.id);
+      openInvoiceWindow(html, true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionBillId(null);
+    }
+  };
 
   return (
     <div className="min-h-full bg-muted/30">
@@ -65,11 +105,23 @@ export default function DriverBills({ driver }) {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4">
-                  <button type="button" className="flex-1 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium flex items-center justify-center gap-1">
-                    <Icon name="Eye" size={14} /> View
+                  <button
+                    type="button"
+                    onClick={() => handleView(bill)}
+                    disabled={actionBillId === bill.id}
+                    className="flex-1 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-50"
+                  >
+                    <Icon name="Eye" size={14} />
+                    {actionBillId === bill.id ? "…" : "View"}
                   </button>
-                  <button type="button" className="flex-1 py-2 rounded-lg border border-border text-sm font-medium flex items-center justify-center gap-1">
-                    <Icon name="Download" size={14} /> Download
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(bill)}
+                    disabled={actionBillId === bill.id}
+                    className="flex-1 py-2 rounded-lg border border-border text-sm font-medium flex items-center justify-center gap-1 disabled:opacity-50"
+                  >
+                    <Icon name="Download" size={14} />
+                    {actionBillId === bill.id ? "…" : "Download"}
                   </button>
                 </div>
               </div>

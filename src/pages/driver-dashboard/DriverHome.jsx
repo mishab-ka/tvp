@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Icon from "../../components/AppIcon";
 import { formatCurrency } from "../../utils/formatters";
-import { getDriverBills } from "../../lib/tvpManagementAPI";
+import { getDriverBills, getBillInvoiceHtml } from "../../lib/tvpManagementAPI";
 import { useAuth } from "../../contexts/AuthContext";
 
 export default function DriverHome({ driver }) {
@@ -29,6 +29,39 @@ export default function DriverHome({ driver }) {
   const prepaid = Number(driver?.prePaidRentAmount ?? 0);
   const vehicles = driver?.vehicleNumbers?.length ? driver.vehicleNumbers : [];
   const recentBill = bills[0];
+
+  const openInvoiceWindow = (html, forPrint = false) => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    if (forPrint) {
+      w.onload = () => {
+        w.print();
+        w.onafterprint = () => w.close();
+      };
+    }
+  };
+
+  const handleBillView = async (bill) => {
+    if (!bill?.id) return;
+    try {
+      const html = await getBillInvoiceHtml(bill.id);
+      openInvoiceWindow(html, false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleBillDownload = async (bill) => {
+    if (!bill?.id) return;
+    try {
+      const html = await getBillInvoiceHtml(bill.id);
+      openInvoiceWindow(html, true);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const formatDateRange = (bill) => {
     if (!bill?.week_start && !bill?.created_at) return "—";
@@ -131,12 +164,14 @@ export default function DriverHome({ driver }) {
               <div className="flex gap-2">
                 <button
                   type="button"
+                  onClick={() => handleBillView(recentBill)}
                   className="flex-1 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium flex items-center justify-center gap-1"
                 >
                   <Icon name="Eye" size={14} /> View
                 </button>
                 <button
                   type="button"
+                  onClick={() => handleBillDownload(recentBill)}
                   className="flex-1 py-2 rounded-lg border border-border text-sm font-medium flex items-center justify-center gap-1"
                 >
                   <Icon name="Download" size={14} /> Download
